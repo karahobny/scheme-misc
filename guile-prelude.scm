@@ -164,14 +164,6 @@
 
 
 ;;;; *** list functions ***
-(define-syntax zip
-  (syntax-rules ()
-     [(_ (x ...) (y ...)) (list (:: x (:: y '())) ...)]))
-
-(define-syntax unzip
-  (syntax-rules ()
-    [(_ (x y) ...) (list (list x ...) (list y ...))]))
-
 (define (fold f n xs)
   (if (null? xs) n
       (fold f (f n (hd xs)) (tl xs))))
@@ -191,9 +183,10 @@
    [else             (fold (λ x y -> y) null xs)]))
 
 (define (rev xs)
-  (let^ rec aux := (λ x y ->
-                     (if (null? x) y
-                         (aux (tl x) (:: (hd x) y))))
+  (let^ rec aux :=
+        (λ x y ->
+           (if (null? x) y
+               (aux (tl x) (:: (hd x) y))))
         in (aux xs null)))
 
 (define (sum-ls xs)
@@ -208,9 +201,10 @@
   (λ (map (λ (+ _ 1)) (ι _))))
 
 (define (fact n)
-  (let^ rec aux := (λ n acc ->
-                     (if (= n 0) acc
-                         (aux (- n 1) (* n acc))))
+  (let^ rec aux :=
+        (λ n acc ->
+           (if (= n 0) acc
+               (aux (- n 1) (* n acc))))
         in (aux n 1)))
 
 (define fldfac
