@@ -79,6 +79,11 @@
       [(_     x := y and e ...)
        #'((lambda (x) (let^ e ...)) y)])))
 
+;; more syntactic sugar
+;; Example:
+;;   (let^^ (x 10) & (y (+ x 19)) & (z (+ x y)) in z)
+;;   => 39
+
 (define-syntax let^^
   (lambda (stx)
     (syntax-case stx (& in)
@@ -90,6 +95,8 @@
        #'((lambda () (define x y) (let^^ e ...)))]
       [(_     (x y) &   e ...)
        #'((lambda (x) (let^^ e ...)) y)])))
+
+
 
 ;; quick letrec thanks to dybvig
 (define-syntax rec
