@@ -1,3 +1,5 @@
+;; -*- geiser-scheme-implementation: guile -*-
+
 ;;;; *** lambda ***
 ;; either \ or λ to stand for enhanced lambda.
 ;; `->' to separate variables from the expression.
