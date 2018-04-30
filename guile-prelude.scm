@@ -135,11 +135,11 @@
 (define Q? rational?)
 (define C? complex?)
 
-(define-syntax-rule (>?  . x) (> . x))
-(define-syntax-rule (<?  . x) (< . x))
+(define-syntax-rule (>? . x) (> . x))
+(define-syntax-rule (<? . x) (< . x))
 (define-syntax-rule (>=? . x) (>= . x))
 (define-syntax-rule (<=? . x) (<= . x))
-(define-syntax-rule (=?  . x) (= . x))
+(define-syntax-rule (=? . x) (= . x))
 (define-syntax-rule (/=? . x) (not (= . x)))
 
 (define-syntax-rule (and? . x) (and . x))
