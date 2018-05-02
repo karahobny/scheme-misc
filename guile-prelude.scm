@@ -20,7 +20,7 @@
 
 (define-syntax \
   (lambda (stx)
-    (syntax-case stx (->)
+    (syntax-case stx (-> ..)
       [(\ (e ...))
        (with-syntax ([x (datum->syntax #'\ '_)])
          #'(lambda (x) (e ...)))]
