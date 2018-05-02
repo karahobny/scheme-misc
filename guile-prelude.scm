@@ -20,43 +20,43 @@
 
 (define-syntax \
   (lambda (stx)
-    (syntax-case stx (-> ..)
-      [(\ (e ...))
-       (with-syntax ([x (datum->syntax #'\ '_)])
-         #'(lambda (x) (e ...)))]
-      [(_ v .. -> e)
-       #'(lambda v e)]
-      [(_ v ... -> e)
-       #'(lambda (v ...) e)]
-      [(_ (v ...) (e ...))
-       #'(lambda (v ...) (e ...))])))
+    (syntax-case stx (->)
+      ((\ (e ...))
+       (with-syntax ((x (datum->syntax #'\ '_)))
+         #'(lambda (x) (e ...))))
+      ((_ v .. -> e)
+       #'(lambda v e))
+      ((_ v ... -> e)
+       #'(lambda (v ...) e))
+      ((_ (v ...) (e ...))
+       #'(lambda (v ...) (e ...))))))
 
 (define-syntax λ
   (lambda (stx)
     (syntax-case stx (-> ..)
-      [(λ (e ...))
+      ((λ (e ...))
        (with-syntax ([x (datum->syntax #'λ '_)])
-         #'(lambda (x) (e ...)))]
-      [(_ v .. -> e)
-       #'(lambda v e)]
-      [(_ v ... -> e)
-       #'(lambda (v ...) e)]
-      [(_ (v ...) (e ...))
-       #'(lambda (v ...) (e ...))])))
+         #'(lambda (x) (e ...))))
+      ((_ v .. -> e)
+       #'(lambda v e))
+      ((_ v ... -> e)
+       #'(lambda (v ...) e))
+      ((_ (v ...) (e ...))
+       #'(lambda (v ...) (e ...))))))
 
 (define-syntax lambda^
   (lambda (stx)
     (syntax-case stx ()
-      [(_ v e r ...)
+      ((_ v e r ...)
        #'(lambda v
            (call/cc
              (lambda (escape)
                (syntax-parameterize
-                   ([return
+                   ((return
                      (syntax-rules ()
-                       [(return vals (... ...))
-                        (escape vals (... ...))])])
-                 e r ...))))])))
+                       ((return vals (... ...))
+                        (escape vals (... ...))))))
+                 e r ...))))))))
 
 (define-syntax-rule (λ^ . x) (lambda^ . x))
 
@@ -82,14 +82,14 @@
 (define-syntax let^
   (lambda (stx)
     (syntax-case stx (rec := and in)
-      [(_ rec x := y in  e ...)
-       #'((lambda () (define x y) ((lambda (x) e ...) y)))]
-      [(_     x := y in  e ...)
-       #'((lambda (x) e ...) y)]
-      [(_ rec x := y and e ...)
-       #'((lambda () (define x y) (let^ e ...)))]
-      [(_     x := y and e ...)
-       #'((lambda (x) (let^ e ...)) y)])))
+      ((_ rec x := y in  e ...)
+       #'((lambda () (define x y) ((lambda (x) e ...) y))))
+      ((_     x := y in  e ...)
+       #'((lambda (x) e ...) y))
+      ((_ rec x := y and e ...)
+       #'((lambda () (define x y) (let^ e ...))))
+      ((_     x := y and e ...)
+       #'((lambda (x) (let^ e ...)) y)))))
 
 ;; more syntactic sugar
 ;; Example:
@@ -99,14 +99,14 @@
 (define-syntax let^^
   (lambda (stx)
     (syntax-case stx (& in)
-      [(_ rec (x y) in  e ...)
-       #'((lambda () (define x y) ((lambda (x) e ...) y)))]
-      [(_     (x y) in  e ...)
-       #'((lambda (x) e ...) y)]
-      [(_ rec (x y) &   e ...)
-       #'((lambda () (define x y) (let^^ e ...)))]
-      [(_     (x y) &   e ...)
-       #'((lambda (x) (let^^ e ...)) y)])))
+      ((_ rec (x y) in  e ...)
+       #'((lambda () (define x y) ((lambda (x) e ...) y))))
+      ((_     (x y) in  e ...)
+       #'((lambda (x) e ...) y))
+      ((_ rec (x y) &   e ...)
+       #'((lambda () (define x y) (let^^ e ...))))
+      ((_     (x y) &   e ...)
+       #'((lambda (x) (let^^ e ...)) y)))))
 
 
 
@@ -114,32 +114,32 @@
 (define-syntax rec
   (lambda (stx)
     (syntax-case stx ()
-      [(_ (x . v) e)
-       #'(letrec ([x (lambda v . e)]) e)]
-      [(_ x y)
-       #'(letrec ([x y]) x)])))
+      ((_ (x . v) e)
+       #'(letrec ((x (lambda v . e))) e))
+      ((_ x y)
+       #'(letrec ((x y)) x)))))
 
 
 ;;;; *** clojure threading macros ***
 (define-syntax ~>
   (lambda (stx)
     (syntax-case stx ()
-      [(_ x)
-       #'x]
-      [(_ x ... (y z ...))
-       #'(y (~> x ...) z ...)]
-      [(_ x ... y)
-       #'(y (~> x ...))])))
+      ((_ x)
+       #'x)
+      ((_ x ... (y z ...))
+       #'(y (~> x ...) z ...))
+      ((_ x ... y)
+       #'(y (~> x ...))))))
 
 (define-syntax ~>>
   (lambda (stx)
     (syntax-case stx ()
-      [(_ x)
-       #'x]
-      [(_ x ... (y z ...))
-       #'(y z ... (~>> x ...))]
-      [(_ x ... y)
-       #'(y (~>> x ...))])))
+      ((_ x)
+       #'x)
+      ((_ x ... (y z ...))
+       #'(y z ... (~>> x ...)))
+      ((_ x ... y)
+       #'(y (~>> x ...))))))
 
 
 ;;;; *** bool ***
@@ -168,18 +168,21 @@
 (define-syntax-rule (not? . x) (not . x))
 (define-syntax-rule (-.? . x) (not . x))
 (define-syntax-rule (~.? . x) (not . x))
-;; cons
-(define-syntax-rule (:: . x) (cons . x))
-;; empty list
-(define null '())
 
-;;;; *** cxr ***
+
+;;;; *** primitives ***
+;;; cxr
 ;; car
 (define hd   car)
 (define head car)
 ;; cdr
 (define tl   cdr)
 (define tail cdr)
+;;; lists
+;; cons
+(define-syntax-rule (:: . x) (cons . x))
+;; empty list
+(define null '())
 
 
 ;;;; *** list functions ***
@@ -197,9 +200,9 @@
 
 (define (last xs)
   (cond
-   [(null? xs)       null]
-   [(-.? (list? xs)) #f]
-   [else             (fold (λ x y -> y) null xs)]))
+   ((null? xs)       null)
+   ((-.? (list? xs)) #f)
+   (else             (fold (λ x y -> y) null xs))))
 
 (define (rev xs)
   (let^ rec aux :=
@@ -210,9 +213,9 @@
 
 (define (sum-ls xs)
   (cond
-   [(null? xs)       null]
-   [(-.? (list? xs)) #f]
-   [else             (fold (λ x y -> (+ x y)) 0 xs)]))
+   ((null? xs)       null)
+   ((-.? (list? xs)) #f)
+   (else             (fold (λ x y -> (+ x y)) 0 xs))))
 
 (define ι iota)
 
