@@ -56,10 +56,6 @@
 
 (define-syntax-rule (λ^ . x) (lambda^ . x))
 
-(define curry (λ x y -> (f (x y))))
-
-
-((curry map 1+ '(1 5 2 3 4))
 
 ;;;; *** let ***
 
