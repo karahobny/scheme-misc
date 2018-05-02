@@ -5,8 +5,8 @@
 ;; `->' to separate variables from the expression.
 ;; without variables and `->', use a single variable
 ;; accesed with an underscore, `_'.
-;; currently doesnt work with paren-less lambda argument.
-;; (y-combinator as an example of this.)
+;; lambda rest args works with two dots after arg now.
+;; y-combinator shown as an example
 
 ;; Example:
 ;;  ((λ x y -> (+ x y)) 5 10) => 15
@@ -16,7 +16,7 @@
 ;; (define Y
 ;;   (λ h ->
 ;;      ((λ (_ _))
-;;       (λ (h (lambda args (apply (_ _) args)))))))
+;;       (λ (h (λ a .. -> (apply (_ _) a)))))))
 
 (define-syntax \
   (lambda (stx)
@@ -24,6 +24,8 @@
       [(\ (e ...))
        (with-syntax ([x (datum->syntax #'\ '_)])
          #'(lambda (x) (e ...)))]
+      [(_ v .. -> e)
+       #'(lambda v e)]
       [(_ v ... -> e)
        #'(lambda (v ...) e)]
       [(_ (v ...) (e ...))
@@ -31,10 +33,12 @@
 
 (define-syntax λ
   (lambda (stx)
-    (syntax-case stx (->)
+    (syntax-case stx (-> ..)
       [(λ (e ...))
        (with-syntax ([x (datum->syntax #'λ '_)])
          #'(lambda (x) (e ...)))]
+      [(_ v .. -> e)
+       #'(lambda v e)]
       [(_ v ... -> e)
        #'(lambda (v ...) e)]
       [(_ (v ...) (e ...))
