@@ -35,7 +35,7 @@
   (lambda (stx)
     (syntax-case stx (-> ..)
       ((λ (e ...))
-       (with-syntax ([x (datum->syntax #'λ '_)])
+       (with-syntax ((x (datum->syntax #'λ '_)))
          #'(lambda (x) (e ...))))
       ((_ v .. -> e)
        #'(lambda v e))
