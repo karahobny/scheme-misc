@@ -223,6 +223,12 @@
    ((-.? (list? xs)) #f)
    (else             (fold (λ x y -> (+ x y)) 0 xs))))
 
+(define (prod-ls xs)
+  (cond
+   ((null? xs)       null)
+   ((-.? (list? xs)) #f)
+   (else             (fold (λ x y -> (* x y)) 1 xs))))
+
 (define ι iota)
 
 (define ι1
