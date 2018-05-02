@@ -4,11 +4,19 @@
 ;; either \ or λ to stand for enhanced lambda.
 ;; `->' to separate variables from the expression.
 ;; without variables and `->', use a single variable
-;; accesed with an underscore, `_'
+;; accesed with an underscore, `_'.
+;; currently doesnt work with paren-less lambda argument.
+;; (y-combinator as an example of this.)
 
 ;; Example:
 ;;  ((λ x y -> (+ x y)) 5 10) => 15
 ;;  ((λ (+ _ 10)) 5)          => 15
+
+;; Y-combinator:
+;; (define Y
+;;   (λ h ->
+;;      ((λ (_ _))
+;;       (λ (h (lambda args (apply (_ _) args)))))))
 
 (define-syntax \
   (lambda (stx)
@@ -48,6 +56,10 @@
 
 (define-syntax-rule (λ^ . x) (lambda^ . x))
 
+(define curry (λ x y -> (f (x y))))
+
+
+((curry map 1+ '(1 5 2 3 4))
 
 ;;;; *** let ***
 
