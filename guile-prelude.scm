@@ -6,7 +6,12 @@
 ;; without variables and `->', use a single variable
 ;; accesed with an underscore, `_'.
 ;; lambda rest args works with two dots after arg now.
-;; y-combinator shown as an example
+;; y-combinator shown as an example.
+;; lambda with multiple lambdas as an argument yet to be
+;; fixed, but with (λ . r) pattern matching you can simply
+;; resort to basic lambda notation in those cases.
+
+;; TODO: fix this, think recursively
 
 ;; Example:
 ;;  ((λ x y -> (+ x y)) 5 10) => 15
@@ -20,16 +25,15 @@
 
 (define-syntax \
   (lambda (stx)
-    (syntax-case stx (->)
+    (syntax-case stx (-> ..)
       ((\ (e ...))
        (with-syntax ((x (datum->syntax #'\ '_)))
          #'(lambda (x) (e ...))))
-      ((_ v .. -> e)
-       #'(lambda v e))
-      ((_ v ... -> e)
-       #'(lambda (v ...) e))
-      ((_ (v ...) (e ...))
-       #'(lambda (v ...) (e ...))))))
+      ((_ v .. -> (e ...))  #'(lambda v (e ...)))       ; lambda rest arg case
+      ((_ v ... -> (e ...)) #'(lambda (v ...) (e ...))) ; check for parens on the expr
+      ((_ x y -> e ...)     #'(lambda (x y) e ...))     ; for cases like cheap `last'
+      ((_ x -> e ...)       #'(lambda (x) e ...))       ; for identity
+      ((_ . r)              #'(lambda . r)))))          ; regular lambda-form
 
 (define-syntax λ
   (lambda (stx)
@@ -37,12 +41,11 @@
       ((λ (e ...))
        (with-syntax ((x (datum->syntax #'λ '_)))
          #'(lambda (x) (e ...))))
-      ((_ v .. -> e)
-       #'(lambda v e))
-      ((_ v ... -> e)
-       #'(lambda (v ...) e))
-      ((_ (v ...) (e ...))
-       #'(lambda (v ...) (e ...))))))
+      ((_ v .. -> (e ...))  #'(lambda v (e ...)))
+      ((_ v ... -> (e ...)) #'(lambda (v ...) (e ...)))
+      ((_ x y -> e ...)     #'(lambda (x y) e ...))
+      ((_ x -> e ...)       #'(lambda (x) e ...))
+      ((_ . r)              #'(lambda . r)))))
 
 (define-syntax lambda^
   (lambda (stx)
@@ -50,13 +53,13 @@
       ((_ v e r ...)
        #'(lambda v
            (call/cc
-             (lambda (escape)
-               (syntax-parameterize
-                   ((return
-                     (syntax-rules ()
-                       ((return vals (... ...))
-                        (escape vals (... ...))))))
-                 e r ...))))))))
+            (lambda (escape)
+              (syntax-parameterize
+                  ((return
+                    (syntax-rules ()
+                      ((return vals (... ...))
+                       (escape vals (... ...))))))
+                e r ...))))))))
 
 (define-syntax-rule (λ^ . x) (lambda^ . x))
 
@@ -143,6 +146,9 @@
 
 
 ;;;; *** bool ***
+(define true  #t)
+(define false #f)
+
 (define bool? boolean?)
 (define proc? procedure?)
 (define str? string?)
