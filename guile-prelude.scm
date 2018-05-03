@@ -1,5 +1,11 @@
 ;; -*- geiser-scheme-implementation: guile -*-
 
+(use-modules
+ (ice-9 match)
+ (srfi srfi-9 gnu)
+ (srfi srfi-26)
+ (oop goops))
+
 ;;;; *** lambda ***
 ;; either \ or λ to stand for enhanced lambda.
 ;; `->' to separate variables from the expression.
@@ -16,12 +22,6 @@
 ;; Example:
 ;;  ((λ x y -> (+ x y)) 5 10) => 15
 ;;  ((λ (+ _ 10)) 5)          => 15
-
-;; Y-combinator:
-;; (define Y
-;;   (λ h ->
-;;      ((λ (_ _))
-;;       (λ (h (λ a .. -> (apply (_ _) a)))))))
 
 (define-syntax \
   (lambda (stx)
@@ -47,19 +47,22 @@
       ((_ x -> e ...)       #'(lambda (x) e ...))
       ((_ . r)              #'(lambda . r)))))
 
+(define Y
+  (λ f -> ((λ (_ _)) (λ (f (λ a .. -> (apply (_ _) a)))))))
+
 (define-syntax lambda^
   (lambda (stx)
     (syntax-case stx ()
       ((_ v e r ...)
-       #'(lambda v
-           (call/cc
-            (lambda (escape)
-              (syntax-parameterize
-                  ((return
-                    (syntax-rules ()
-                      ((return vals (... ...))
-                       (escape vals (... ...))))))
-                e r ...))))))))
+       #'(λ v ->
+            (call/cc
+             (λ escape ->
+                (syntax-parameterize
+                    ((return
+                      (syntax-rules ()
+                        ((return vals (... ...))
+                         (escape vals (... ...))))))
+                  e r ...))))))))
 
 (define-syntax-rule (λ^ . x) (lambda^ . x))
 
@@ -106,43 +109,33 @@
        #'((lambda () (define x y) ((lambda (x) e ...) y))))
       ((_     (x y) in  e ...)
        #'((lambda (x) e ...) y))
-      ((_ rec (x y) &   e ...)
+      ((_ rec (x y) & e ...)
        #'((lambda () (define x y) (let^^ e ...))))
-      ((_     (x y) &   e ...)
+      ((_     (x y) & e ...)
        #'((lambda (x) (let^^ e ...)) y)))))
-
-
 
 ;; quick letrec thanks to dybvig
 (define-syntax rec
   (lambda (stx)
     (syntax-case stx ()
-      ((_ (x . v) e)
-       #'(letrec ((x (lambda v . e))) e))
-      ((_ x y)
-       #'(letrec ((x y)) x)))))
+      ((_ (x . v) e) #'(letrec ((x (lambda v . e))) e))
+      ((_ x y)       #'(letrec ((x y)) x)))))
 
 
 ;;;; *** clojure threading macros ***
 (define-syntax ~>
   (lambda (stx)
     (syntax-case stx ()
-      ((_ x)
-       #'x)
-      ((_ x ... (y z ...))
-       #'(y (~> x ...) z ...))
-      ((_ x ... y)
-       #'(y (~> x ...))))))
+      ((_ x)               #'x)
+      ((_ x ... (y z ...)) #'(y (~> x ...) z ...))
+      ((_ x ... y)         #'(y (~> x ...))))))
 
 (define-syntax ~>>
   (lambda (stx)
     (syntax-case stx ()
-      ((_ x)
-       #'x)
-      ((_ x ... (y z ...))
-       #'(y z ... (~>> x ...)))
-      ((_ x ... y)
-       #'(y (~>> x ...))))))
+      ((_ x)               #'x)
+      ((_ x ... (y z ...)) #'(y z ... (~>> x ...)))
+      ((_ x ... y)         #'(y (~>> x ...))))))
 
 
 ;;;; *** bool ***
@@ -151,8 +144,8 @@
 
 (define bool? boolean?)
 (define proc? procedure?)
-(define str? string?)
-(define vec? vector?)
+(define str?  string?)
+(define vec?  vector?)
 
 (define N? number?)
 (define Z? integer?)
@@ -160,20 +153,29 @@
 (define Q? rational?)
 (define C? complex?)
 
-(define-syntax-rule (>? . x) (> . x))
-(define-syntax-rule (<? . x) (< . x))
+;; these are largely inspired by J. Shutt's
+;; Kernel, with all predicate-procs ending in
+;; a question mark (?). Haskell, Ocaml, Coq, Datalog
+;; and mathematical notation in general has
+;; also been a huge influence as seen especially
+;; on /=?, /\?, \/?, -.?
+
+(define-syntax-rule (>? . x)  (> . x))
+(define-syntax-rule (<? . x)  (< . x))
 (define-syntax-rule (>=? . x) (>= . x))
 (define-syntax-rule (<=? . x) (<= . x))
-(define-syntax-rule (=? . x) (= . x))
+(define-syntax-rule (=? . x)  (= . x))
 (define-syntax-rule (/=? . x) (not (= . x)))
 
 (define-syntax-rule (and? . x) (and . x))
-(define-syntax-rule (or? . x) (or . x))
-(define-syntax-rule (&&? . x) (and . x))
-(define-syntax-rule (||? . x) (or . x))
+(define-syntax-rule (/\?  . x) (and . x))
+(define-syntax-rule (or?  . x) (or  . x))
+(define-syntax-rule (\/?  . x) (or  . x))
 (define-syntax-rule (not? . x) (not . x))
-(define-syntax-rule (-.? . x) (not . x))
-(define-syntax-rule (~.? . x) (not . x))
+(define-syntax-rule (-.?  . x) (not . x))
+(define-syntax-rule (~?   . x) (not . x))
+
+(define 0? zero?)
 
 
 ;;;; *** primitives ***
@@ -184,11 +186,36 @@
 ;; cdr
 (define tl   cdr)
 (define tail cdr)
+
 ;;; lists
-;; cons
-(define-syntax-rule (:: . x) (cons . x))
-;; empty list
+(define-syntax-rule (::  . x) (cons  . x))
+(define-syntax-rule (::* . x) (cons* . x))
+
 (define null '())
+(define @    append)
+(define ^    string-append)
+
+;;; println
+(define (println . str)
+  (for-each display str)
+  (newline))
+
+;;; if sugared / when / unless
+(define-syntax if^
+  (lambda (stx)
+    (syntax-case stx (then else)
+      ((_ p then e else e*) #'(if p e e*))
+      ((_ p e e*)           #'(if p e e*)))))
+
+(define-syntax when
+  (lambda (stx)
+    (syntax-case stx ()
+      ((_ p e . r) #'(if p (begin e . r) false)))))
+
+(define-syntax unless
+  (lambda (stx)
+    (syntax-case stx ()
+      ((_ p e . r) #'(if (-.? p) (begin e . r) false)))))
 
 
 ;;;; *** list functions ***
@@ -205,10 +232,9 @@
       (:: (f (hd xs)) (map f (tl xs)))))
 
 (define (last xs)
-  (cond
-   ((null? xs)       null)
-   ((-.? (list? xs)) #f)
-   (else             (fold (λ x y -> y) null xs))))
+  (cond ((null? xs)       null)
+        ((-.? (list? xs)) false)
+        (else             (fold (λ x y -> y) null xs))))
 
 (define (rev xs)
   (let^ rec aux :=
@@ -218,16 +244,14 @@
         in (aux xs null)))
 
 (define (sum-ls xs)
-  (cond
-   ((null? xs)       null)
-   ((-.? (list? xs)) #f)
-   (else             (fold (λ x y -> (+ x y)) 0 xs))))
+  (cond ((null? xs)       null)
+        ((-.? (list? xs)) false)
+        (else             (fold (λ x y -> (+ x y)) 0 xs))))
 
 (define (prod-ls xs)
-  (cond
-   ((null? xs)       null)
-   ((-.? (list? xs)) #f)
-   (else             (fold (λ x y -> (* x y)) 1 xs))))
+  (cond ((null? xs)       null)
+        ((-.? (list? xs)) false)
+        (else             (fold (λ x y -> (* x y)) 1 xs))))
 
 (define ι iota)
 
@@ -244,134 +268,4 @@
 (define fldfac
   (λ (fold * 1 (ι1 _))))
 
-
-;;;; *** cxxr ***
-;; caar
-(define (h.h x)
-  (hd (hd x)))
-(define (h.hd x)
-  (hd (hd x)))
-;; cadr
-(define (h.t x)
-  (hd (tl x)))
-(define (h.tl x)
-  (hd (tl x)))
-;; cdar
-(define (t.h x)
-  (tl (hd x)))
-(define (t.hd x)
-  (tl (hd x)))
-;; cddr
-(define (t.t x)
-  (tl (tl x)))
-(define (t.tl x)
-  (tl (tl x)))
-
-;;;; *** cxxxr ***
-;; caaar
-(define (h.h.h x)
-  (hd (hd (hd x))))
-(define (h.h.hd x)
-  (hd (hd (hd x))))
-;; caadr
-(define (h.h.t x)
-  (hd (hd (tl x))))
-(define (h.h.tl x)
-  (hd (hd (tl x))))
-;; cadar
-(define (h.t.h x)
-  (hd (tl (hd x))))
-(define (h.t.hd x)
-  (hd (tl (hd x))))
-;; cdaar
-(define (t.h.h x)
-  (tl (hd (hd x))))
-(define (t.h.hd x)
-  (tl (hd (hd x))))
-;; cddar
-(define (t.t.h x)
-  (tl (tl (hd x))))
-(define (t.t.hd x)
-  (tl (tl (hd x))))
-;; caddr
-(define (h.t.t x)
-  (hd (tl (tl x))))
-(define (h.t.tl x)
-  (hd (tl (tl x))))
-;; cdddr
-(define (t.t.t x)
-  (tl (tl (tl x))))
-(define (t.t.tl x)
-  (tl (tl (tl x))))
-
-;;;; *** cxxxxr ***
-;; caaaar
-(define (h.h.h.h x)
-  (hd (hd (hd (hd x)))))
-(define (h.h.h.hd x)
-  (hd (hd (hd (hd x)))))
-;; caaadr
-(define (h.h.h.t x)
-  (hd (hd (hd (tl x)))))
-(define (h.h.h.tl x)
-  (hd (hd (hd (tl x)))))
-;; caaddr
-(define (h.h.t.t x)
-  (hd (hd (tl (tl x)))))
-(define (h.h.t.tl x)
-  (hd (hd (tl (tl x)))))
-;; cadddr
-(define (h.t.t.t x)
-  (hd (tl (tl (tl x)))))
-(define (h.t.t.tl x)
-  (hd (tl (tl (tl x)))))
-;; cddddr
-(define (t.t.t.t x)
-  (tl (tl (tl (tl x)))))
-(define (t.t.t.tl x)
-  (tl (tl (tl (tl x)))))
-;; cdaaar
-(define (t.h.h.h x)
-  (tl (hd (hd (hd x)))))
-(define (t.h.h.hd x)
-  (tl (hd (hd (hd x)))))
-;; cddaar
-(define (t.t.h.h x)
-  (tl (tl (hd (hd x)))))
-(define (t.t.h.hd x)
-  (tl (tl (hd (hd x)))))
-;; cdddar
-(define (t.t.t.h x)
-  (tl (tl (tl (hd x)))))
-(define (t.t.t.hd x)
-  (tl (tl (tl (hd x)))))
-;; cdadar
-(define (t.h.t.h x)
-  (hd (tl (hd (tl x)))))
-(define (t.h.t.hd x)
-  (hd (tl (hd (tl x)))))
-;; cadadr
-(define (h.t.h.t x)
-  (hd (tl (hd (tl x)))))
-(define (h.t.h.tl x)
-  (hd (tl (hd (tl x)))))
-;; cadaar
-(define (h.t.h.h x)
-  (hd (tl (hd (hd x)))))
-(define (h.t.h.hd x)
-  (hd (tl (hd (hd x)))))
-;; caadar
-(define (h.t.h.t x)
-  (hd (hd (tl (hd x)))))
-(define (h.t.h.tl x)
-  (hd (hd (tl (hd x)))))
-;; cdaadr
-(define (t.h.h.t x)
-  (tl (hd (hd (tl x)))))
-(define (t.h.h.tl x)
-  (tl (hd (hd (tl x)))))
-;; caddar
-(define (h.t.t.h x)
-  (hd (tl (tl (hd x)))))
-(define (h.t.t.hd x)
-  (hd (tl (tl (hd x)))))
+(load "cxr.scm")
