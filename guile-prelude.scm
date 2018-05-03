@@ -160,11 +160,11 @@
 ;; also been a huge influence as seen especially
 ;; on /=?, /\?, \/?, -.?
 
-(define-syntax-rule (>?  . x) (> . x))
-(define-syntax-rule (<?  . x) (< . x))
+(define-syntax-rule (>?  . x) (>  . x))
+(define-syntax-rule (<?  . x) (<  . x))
 (define-syntax-rule (>=? . x) (>= . x))
 (define-syntax-rule (<=? . x) (<= . x))
-(define-syntax-rule (=?  . x) (= . x))
+(define-syntax-rule (=?  . x) (=  . x))
 (define-syntax-rule (/=? . x) (not (= . x)))
 
 (define-syntax-rule (and? . x) (and . x))
