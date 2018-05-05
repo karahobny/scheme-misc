@@ -116,7 +116,6 @@
         ((and (identifier? #'x) (free-identifier=? #'c #'and))
          #'((lambda (x) (let^ e ...)) y)))))))
 
-
 ;; more syntactic sugar
 ;; Example:
 ;;   (let^^ (x 10) & (y (+ x 19)) & (z (+ x y)) in z)
@@ -263,8 +262,6 @@
   (if' (Ø? xs) n
        (fold f (f n (hd xs)) (tl xs))))
 
-(define / foldl)
-
 (define (foldr f n xs)
   (if (Ø? xs) n
       (f (hd xs) (foldr f n (tl xs)))))
@@ -309,7 +306,7 @@
 (define (fact n)
   (let^ rec aux :=
         (λ n acc ->
-           (if (=? n 0) acc
+           (if (0? n) acc
                (aux (- n 1) (* n acc))))
         in (aux n 1)))
 
