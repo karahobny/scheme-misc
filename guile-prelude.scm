@@ -194,6 +194,7 @@
 
 (define-syntax-rule (>?  . x) (>  . x))
 (define-syntax-rule (>=? . x) (>= . x))
+(define-syntax-rule (<?  . x) (<  . x))
 (define-syntax-rule (<=? . x) (<= . x))
 (define-syntax-rule (=?  . x) (=  . x))
 (define-syntax-rule (/=? . x) (not (= . x)))
@@ -260,7 +261,7 @@
 ;;;; *** list functions ***
 (define (foldl f n xs)
   (if' (Ø? xs) n
-       (fold f (f n (hd xs)) (tl xs))))
+       (foldl f (f n (hd xs)) (tl xs))))
 
 (define (foldr f n xs)
   (if (Ø? xs) n
@@ -302,6 +303,13 @@
 ;; indices should start at 1 goddamnit
 (define ι
   (λ (map (λ (+ _ 1)) (iota _))))
+
+(define (list-ref n xs)
+  (cond ((Ø? xs)  ⊥)
+        ((=? n 1) (hd xs))
+        (else     (list-ref (- n 1) (tl xs)))))
+
+(define O-ref list-ref)
 
 (define (fact n)
   (let^ rec aux :=
