@@ -179,10 +179,6 @@
 (define Q? rational?)
 (define C? complex?)
 
-(define 0? zero?)
-
-;; decided to drop the
-
 (define-syntax-rule (>  . x) (>  . x))
 (define-syntax-rule (>= . x) (>= . x))
 (define-syntax-rule (<  . x) (<  . x))
@@ -286,16 +282,16 @@
       (:: (f (hd xs)) (map f (tl xs)))))
 
 (define (last xs)
-  (cond ((Ø? xs)     Ø)
-        ((¬ (O? xs)) ⊥)
-        (else        (foldl (λ x y -> y) Ø xs))))
+  (cond ((Ø? xs) Ø)
+        ((¬O xs) ⊥)
+        (else    (foldl (λ x y -> y) Ø xs))))
 
 (define (rev xs)
   (let^ rec aux :=
         (λ x y ->
-           (cond ((Ø? x)  y)
-                 ((¬O? x) ⊥)
-                 (else    (aux (tl x) (:: (hd x) y)))))
+           (cond ((Ø? x) y)
+                 ((¬O x) ⊥)
+                 (else   (aux (tl x) (:: (hd x) y)))))
         in (aux xs Ø)))
 
 ;; less than ideal probably but just testing around
@@ -317,16 +313,16 @@
         in (aux f xs ys zs Ø)))
 
 (define (sum xs)
-  (cond ((Ø? xs)  Ø)
-        ((¬O? xs) ⊥)
-        (else     (foldl + 0 xs))))
+  (cond ((Ø? xs) Ø)
+        ((¬O xs) ⊥)
+        (else    (foldl + 0 xs))))
 
 (define Σ sum)
 
 (define (product xs)
-  (cond ((Ø? xs)  Ø)
-        ((¬O? xs) ⊥)
-        (else     (foldl * 1 xs))))
+  (cond ((Ø? xs) Ø)
+        ((¬O xs) ⊥)
+        (else    (foldl * 1 xs))))
 
 (define ∏ product)
 
@@ -346,12 +342,13 @@
 (define (fact n)
   (let^ rec aux :=
         (λ n acc ->
-           (if (0? n) acc
+           (if (= n 0) acc
                (aux (- n 1) (* n acc))))
         in (aux n 1)))
 
 (define foldfact (λ (foldl * 1 (ι _))))
 
+;; apl-like demonstration of terse factorial definition
 (define ! (λ (∏ (ι _))))
 
 (load "cxr.scm")
