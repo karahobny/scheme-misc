@@ -18,7 +18,7 @@
              (srfi  srfi-41)
              (oop   goops))
 
-(read-enable 'r7rs-symbols)
+(read-enable  'r7rs-symbols)
 (print-enable 'r7rs-symbols)
 
 
@@ -43,10 +43,11 @@
     (syntax-case stx (-> ..)
       ((\ (e ...))
        (with-syntax ((x (datum->syntax #'\ '_))) #'(lambda (x) (e ...))))
-      ((_ v .. -> (e ...))  #'(lambda v (e ...)))       ; lambda rest arg case
+      ((_ v ..  -> (e ...)) #'(lambda v (e ...)))       ; lambda rest arg case
       ((_ v ... -> (e ...)) #'(lambda (v ...) (e ...))) ; check for parens on the expr
-      ((_ x y -> e ...)     #'(lambda (x y) e ...))     ; for cases like cheap `last'
-      ((_ x -> e ...)       #'(lambda (x) e ...))       ; for identity
+      ((_ x y   ->  e ...)  #'(lambda (x y) e ...))     ; for cases like cheap `last'
+      ((_ x     ->  e ...)  #'(lambda (x) e ...))       ; id
+      ((_       ->  e ...)  #'(lambda () e ...))
       ((_ . r)              #'(lambda . r)))))          ; regular lambda-form
 
 (define-syntax λ
@@ -60,7 +61,6 @@
       ((_ x     ->  e ...)  #'(lambda (x) e ...))
       ((_       ->  e ...)  #'(lambda () e ...))
       ((_ . r)              #'(lambda . r)))))
-
 
 (define Y
   (λ f -> ((λ (_ _)) (λ (f (λ a .. -> (apply (_ _) a)))))))
@@ -123,7 +123,7 @@
 
 (define-syntax let^^
   (lambda (stx)
-    (syntax-case stx (& in)
+    (syntax-case stx (^ in)
       ((_ rec (x y) in  e ...)
        #'((lambda () (define x y) ((lambda (x) e ...) y))))
       ((_     (x y) in  e ...)
@@ -181,38 +181,35 @@
 
 (define 0? zero?)
 
-;; these are largely inspired by J. Shutt's
-;; Kernel, with all predicate-procs ending in
-;; a question mark (?). Haskell, Ocaml, Coq, APL/J
-;; and mathematical notation in general has
-;; also been a huge influence as seen especially
-;; on /=?, /\?, \/?, -.?
+;; decided to drop the
 
-;; suffixing all predicates with ? will also lead to more
-;; terse symbols that could also be available as function,
-;; variable and macro names.
+(define-syntax-rule (>  . x) (>  . x))
+(define-syntax-rule (>= . x) (>= . x))
+(define-syntax-rule (<  . x) (<  . x))
+(define-syntax-rule (<= . x) (<= . x))
+(define-syntax-rule (=  . x) (=  . x))
 
-(define-syntax-rule (>?  . x) (>  . x))
-(define-syntax-rule (>=? . x) (>= . x))
-(define-syntax-rule (<?  . x) (<  . x))
-(define-syntax-rule (<=? . x) (<= . x))
-(define-syntax-rule (=?  . x) (=  . x))
-(define-syntax-rule (/=? . x) (not (= . x)))
-(define-syntax-rule (/>? . x) (not (> . x)))
-(define-syntax-rule (/<? . x) (not (< . x)))
 
-(define-syntax-rule (and? . x) (and . x))
-(define-syntax-rule (/\?  . x) (and . x))
-(define-syntax-rule (∧?   . x) (and . x)) ; unicode logical symbol 'and' (U2227)
-;; (define-syntax-rule (Λ?   . x) (and . x)) ; capital λ for better font rendering
-(define-syntax-rule (or?  . x) (or  . x))
-(define-syntax-rule (\/?  . x) (or  . x))
-(define-syntax-rule (∨?   . x) (or  . x)) ; unicode logical symbol 'or' (U2228)
-;; (define-syntax-rule (V?   . x) (or  . x)) ; capital v for better font rendering
-(define-syntax-rule (not? . x) (not . x))
-(define-syntax-rule (-.?  . x) (not . x))
-(define-syntax-rule (¬?   . x) (not . x)) ; unicode logical symbol 'not' (U00AC)
-(define-syntax-rule (~?   . x) (not . x))
+(define-syntax-rule (/\ . x) (and . x))
+(define-syntax-rule (∧  . x) (and . x)) ; unicode logical symbol 'and' (U2227)
+(define-syntax-rule (\/ . x) (or  . x))
+(define-syntax-rule (∨  . x) (or  . x)) ; unicode logical symbol 'or' (U2228)
+(define-syntax-rule (-. . x) (not . x))
+(define-syntax-rule (¬  . x) (not . x)) ; unicode logical symbol 'not' (U00AC)
+(define-syntax-rule (~  . x) (not . x))
+
+(define-syntax-rule (/= . x) (not (= . x)))
+(define-syntax-rule (/> . x) (not (> . x)))
+(define-syntax-rule (/< . x) (not (< . x)))
+(define-syntax-rule (¬O . x) (not (list? . x)))
+(define-syntax-rule (¬Ø . x) (not (null? . x)))
+
+(define (every? p xs)
+  (let^ rec aux :=
+        (cond ((Ø? xs)     ⊤)
+              ((p (hd xs)) (aux (tl xs)))
+              (else        ⊥))
+        in (aux p xs)))
 
 
 ;;;; *** primitives ***
@@ -247,21 +244,38 @@
       ((_ p then e else e*) #'(if p e e*))
       ((_ p e e*)           #'(if p e e*)))))
 
+(define-syntax if-not
+  (lambda (stx)
+    (syntax-case stx ()
+      ((_ p e e*) #'(if (¬ p) e e*)))))
+
+(define-syntax if-let
+  (lambda (stx)
+    (syntax-case stx (:= in)
+      ((_ (x y) e e*)     #'(let ((x y)) (if x e e*)))
+      ((_ x := y in e e*) #'(let^ x := y in (if x e e*))))))
+
 (define-syntax when
   (lambda (stx)
     (syntax-case stx ()
       ((_ p e . r) #'(if p (begin e . r) ⊥)))))
 
+(define-syntax when-let
+  (lambda (stx)
+    (syntax-case stx (:= in)
+      ((_ (x y) e ...)     #'(let ((x y)) (when x e ...)))
+      ((_ x := y in e ...) #'(let^ x := y in (when x e ...))))))
+
 (define-syntax unless
   (lambda (stx)
     (syntax-case stx ()
-      ((_ p e . r) #'(if (¬? p) (begin e . r) ⊥)))))
+      ((_ p e . r) #'(if (¬ p) (begin e . r) ⊥)))))
 
 
 ;;;; *** list functions ***
 (define (foldl f n xs)
-  (if' (Ø? xs) n
-       (foldl f (f n (hd xs)) (tl xs))))
+  (if (Ø? xs) n
+      (foldl f (f n (hd xs)) (tl xs))))
 
 (define (foldr f n xs)
   (if (Ø? xs) n
@@ -272,29 +286,47 @@
       (:: (f (hd xs)) (map f (tl xs)))))
 
 (define (last xs)
-  (cond ((Ø? xs)      Ø)
-        ((¬? (O? xs)) ⊥)
-        (else         (foldl (λ x y -> y) Ø xs))))
+  (cond ((Ø? xs)     Ø)
+        ((¬ (O? xs)) ⊥)
+        (else        (foldl (λ x y -> y) Ø xs))))
 
 (define (rev xs)
   (let^ rec aux :=
         (λ x y ->
-           (cond ((Ø? x)      y)
-                 ((¬? (O? x)) ⊥)
-                 (else        (aux (tl x) (:: (hd x) y)))))
+           (cond ((Ø? x)  y)
+                 ((¬O? x) ⊥)
+                 (else    (aux (tl x) (:: (hd x) y)))))
         in (aux xs Ø)))
 
+;; less than ideal probably but just testing around
+(define (zip-with f xs ys)
+  (let^ rec aux :=
+        (λ f x y acc ->
+           (cond ((∨ (Ø? x) (Ø? y)) (rev acc))
+                 ((∨ (¬O x) (¬O y)) ⊥)
+                 (else (aux f (tl x) (tl y) (:: (f (hd x) (hd y)) acc)))))
+        in (aux f xs ys Ø)))
+
+(define (zip-with3 f xs ys zs)
+  (let^ rec aux :=
+        (λ f x y z acc ->
+           (cond
+            ((∨ (Ø? x) (Ø? y) (Ø? z)) (rev acc))
+            ((∨ (¬O x) (¬O y) (¬O z)) ⊥)
+            (else (aux f (tl x) (tl y) (tl z) (:: (f (hd x) (hd y) (hd z)) acc)))))
+        in (aux f xs ys zs Ø)))
+
 (define (sum xs)
-  (cond ((Ø? xs)      Ø)
-        ((¬? (O? xs)) ⊥)
-        (else         (foldl + 0 xs))))
+  (cond ((Ø? xs)  Ø)
+        ((¬O? xs) ⊥)
+        (else     (foldl + 0 xs))))
 
 (define Σ sum)
 
 (define (product xs)
-  (cond ((Ø? xs)      Ø)
-        ((¬? (O? xs)) ⊥)
-        (else         (foldl * 1 xs))))
+  (cond ((Ø? xs)  Ø)
+        ((¬O? xs) ⊥)
+        (else     (foldl * 1 xs))))
 
 (define ∏ product)
 
@@ -304,10 +336,10 @@
 (define ι
   (λ (map (λ (+ _ 1)) (iota _))))
 
-(define (list-ref n xs)
+(define (list-ref xs n)
   (cond ((Ø? xs)  ⊥)
-        ((=? n 1) (hd xs))
-        (else     (list-ref (- n 1) (tl xs)))))
+        ((= n 1)  (hd xs))
+        (else     (list-ref (tl xs) (- n 1)))))
 
 (define O-ref list-ref)
 
@@ -318,10 +350,8 @@
                (aux (- n 1) (* n acc))))
         in (aux n 1)))
 
-(define ! fact)
-
 (define foldfact (λ (foldl * 1 (ι _))))
 
-(define ∏! (λ (∏ (ι _))))
+(define ! (λ (∏ (ι _))))
 
 (load "cxr.scm")
