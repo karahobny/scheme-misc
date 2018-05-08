@@ -12,6 +12,8 @@
 
 (use-modules (ice-9 match)
              (ice-9 format)
+             (ice-9 control)
+             (ice-9 curried-definitions)
              (srfi  srfi-1)
              (srfi  srfi-9  gnu)
              (srfi  srfi-26)
@@ -141,6 +143,33 @@
       ((_ x y)       #'(letrec ((x y)) x)))))
 
 
+;;;; *** primitives ***
+;; fast assignment for corner-cases where
+;; you want terse code fast, one-liners etc.
+;;  not to be really used.
+(define-syntax-rule (:=     . x) (define             . x))
+(define-syntax-rule (:=/stx . x) (define-syntax-rule . x))
+
+;;; cxr
+;; car
+(define hd   car)
+(define head car)
+;; cdr
+(define tl   cdr)
+(define tail cdr)
+
+;;; lists
+(define-syntax-rule (::  . x) (cons  . x))
+(define-syntax-rule (::* . x) (cons* . x))
+
+(define null '())
+(define Ø    '())
+(define O    list)
+
+;;; misc.
+(:= succ (λ (+ _ 1)))
+
+
 ;;;; *** clojure threading macros ***
 (define-syntax ~>
   (lambda (stx)
@@ -158,6 +187,13 @@
 
 
 ;;;; *** bool ***
+;; Ocaml/Haskell/Coq/APL etc. mathematical notation
+;; inspired in general. Used to keep question marks
+;; on every predicate-function (boolean returning)
+;; like in J. Shutt's Kernel, but instead opted
+;; for terser code and left the ?'s to special
+;; cases.
+
 (define true  #t)
 (define ⊤     #t) ; verum (down tack) (U22A4)
 (define false #f)
@@ -174,17 +210,15 @@
 (define O?    list?)
 
 (define N? number?)
+(define ℕ? number?)
 (define Z? integer?)
+(define ℤ? integer?)
 (define R? real?)
+(define ℝ? real?)
 (define Q? rational?)
+(define ℚ? rational?)
 (define C? complex?)
-
-(define-syntax-rule (>  . x) (>  . x))
-(define-syntax-rule (>= . x) (>= . x))
-(define-syntax-rule (<  . x) (<  . x))
-(define-syntax-rule (<= . x) (<= . x))
-(define-syntax-rule (=  . x) (=  . x))
-
+(define ℂ? complex?)
 
 (define-syntax-rule (/\ . x) (and . x))
 (define-syntax-rule (∧  . x) (and . x)) ; unicode logical symbol 'and' (U2227)
@@ -197,6 +231,8 @@
 (define-syntax-rule (/= . x) (not (= . x)))
 (define-syntax-rule (/> . x) (not (> . x)))
 (define-syntax-rule (/< . x) (not (< . x)))
+;; negation acts as an implicit question mark
+;; in these cases.
 (define-syntax-rule (¬O . x) (not (list? . x)))
 (define-syntax-rule (¬Ø . x) (not (null? . x)))
 
@@ -207,25 +243,23 @@
               (else        ⊥))
         in (aux p xs)))
 
+(define (between? x y z)
+  (∧ (<  x y) (<= y z)))
 
-;;;; *** primitives ***
-;;; cxr
-;; car
-(define hd   car)
-(define head car)
-;; cdr
-(define tl   cdr)
-(define tail cdr)
+(define-syntax ⊼
+  (syntax-rules ()
+    ((_ e)        (if (¬ e) ⊤ ⊥))
+    ((_ e e* ...) (if (¬ e) ⊥ (⊼ e* ...)))))
 
-;;; lists
-(define-syntax-rule (::  . x) (cons  . x))
-(define-syntax-rule (::* . x) (cons* . x))
+(define-syntax ⊽
+  (syntax-rules ()
+    ((_ e)        (if e ⊥ ⊤))
+    ((_ e e* ...) (if e ⊥ (⊽ e* ...)))))
 
-(define null '())
-(define Ø    '())
-(define O    list)
+(define-syntax-rule (nand . x) (⊼ . x))
+(define-syntax-rule (nor  . x) (⊽ . x))
 
-;;; println
+;;;; *** io ***
 (define \n newline)
 (define (println . str)
   (for-each display str)
@@ -269,6 +303,13 @@
 
 
 ;;;; *** list functions ***
+;; little schemer fame
+(define rember
+  (λ x ys ->
+     (cond ((Ø? ys)       Ø)
+           ((= x (hd ys)) (tl ys))
+           (else          (:: (hd ys) (rember x (tl ys)))))))
+
 (define (foldl f n xs)
   (if (Ø? xs) n
       (foldl f (f n (hd xs)) (tl xs))))
@@ -349,6 +390,6 @@
 (define foldfact (λ (foldl * 1 (ι _))))
 
 ;; apl-like demonstration of terse factorial definition
-(define ! (λ (∏ (ι _))))
+(:= ! (λ (∏ (ι _))))
 
 (load "cxr.scm")
