@@ -84,14 +84,6 @@
 (define-syntax-rule (λ^ . x) (lambda^ . x))
 
 
-;; quick letrec thanks to dybvig
-(define-syntax rec
-  (lambda (stx)
-    (syntax-case stx ()
-      ((_ (x . v) e) #'(letrec ((x (lambda v . e))) e))
-      ((_ x y)       #'(letrec ((x y)) x)))))
-
-
 ;;;; *** primitives ***
 ;; fast assignment for corner-cases where
 ;; you want terse code fast, one-liners etc.
@@ -116,13 +108,26 @@
 (define O    list)
 (define V    vector)
 
+;;; let
+(define-syntax-rule (->  . x) (let     . x))
+(define-syntax-rule (=>  . x) (let*    . x))
+(define-syntax-rule (<-> . x) (letrec  . x))
+(define-syntax-rule (<=> . x) (letrec* . x))
+
+;; quick letrec thanks to dybvig
+(define-syntax rec
+  (syntax-rules ()
+    ((_ (x . v) e) (letrec ((x (lambda v . e))) e))
+    ((_ x y)       (letrec ((x y)) x))))
+
 ;;; misc.
 (:= inc (λ (+ _ 1)))
-(:=/stx (∆ . x) (inc . x))
 (:= dec (λ (- _ 1)))
-;; nabla really isnt decr operator but lets
-;; just roll with it.
-(:=/stx (∇ . x) (dec . x))
+
+(:= ∆ inc)
+(:= ∇ dec)
+;; nb. nabla really isnt decr operator but
+;; lets just roll with it.
 
 
 ;;;; *** clojure threading macros ***
@@ -203,10 +208,11 @@
 (define 6? (λ (if (= _ (∆ (∆ (∆ (∆ (∆ (∆ 0))))))) ⊤ ⊥)))
 
 (define (every? p xs)
-  (letrec ((aux (cond ((Ø? xs)     ⊤)
-                      ((p (hd xs)) (aux (tl xs)))
-                      (else        ⊥))))
-    (aux p xs)))
+  (<->
+   ((α (cond ((Ø? xs)     ⊤)
+             ((p (hd xs)) (α (tl xs)))
+             (else        ⊥))))
+   (α p xs)))
 
 (define (≬ x y z)
   (⋀ (<  x y) (< y z)))
@@ -223,11 +229,11 @@
     ((_ e)        (if e ⊥ ⊤))
     ((_ e e* ...) (if e ⊥ (⊽ e* ...)))))
 
-(define-syntax-rule (nand . x) (⊼ . x))
-(define-syntax-rule (nor  . x) (⊽ . x))
+(:=/stx (nand . x) (⊼ . x))
+(:=/stx (nor  . x) (⊽ . x))
 
 ;;;; *** io ***
-(define \n newline)
+(:= \n newline)
 (define (println . str)
   (for-each display str)
   (\n))
@@ -236,35 +242,29 @@
 ;; denoted simply by prime to take advantage
 ;; of emacs font-lock / highlighting
 (define-syntax if'
-  (lambda (stx)
-    (syntax-case stx (then else)
-      ((_ p then e else e*) #'(if p e e*))
-      ((_ p e e*)           #'(if p e e*)))))
+  (syntax-rules (then else)
+    ((_ p then e else e*) (if p e e*))
+    ((_ p e e*)           (if p e e*))))
 
 (define-syntax if-not
-  (lambda (stx)
-    (syntax-case stx ()
-      ((_ p e e*) #'(if (¬ p) e e*)))))
+  (syntax-rules ()
+    ((_ p e e*) (if (¬ p) e e*))))
 
 (define-syntax if-let
-  (lambda (stx)
-    (syntax-case stx (:= in)
-      ((_ (x y) e e*)     #'(let ((x y)) (if x e e*))))))
+  (syntax-rules ()
+    ((_ (x y) e e*) (-> ((x y)) (if x e e*)))))
 
 (define-syntax when
-  (lambda (stx)
-    (syntax-case stx ()
-      ((_ p e . r) #'(if p (begin e . r) ⊥)))))
+  (syntax-rules ()
+    ((_ p e . r) (if p (begin e . r) ⊥))))
 
 (define-syntax when-let
-  (lambda (stx)
-    (syntax-case stx (:= in)
-      ((_ (x y) e ...)     #'(let ((x y)) (when x e ...))))))
+  (syntax-rules ()
+    ((_ (x y) e ...) (-> ((x y)) (when x e ...)))))
 
 (define-syntax unless
-  (lambda (stx)
-    (syntax-case stx ()
-      ((_ p e . r) #'(if (¬ p) (begin e . r) ⊥)))))
+  (syntax-rules ()
+    ((_ p e . r) (if (¬ p) (begin e . r) ⊥))))
 
 
 ;;;; *** list functions ***
@@ -293,48 +293,64 @@
         (else    (foldl (λ x y -> y) Ø xs))))
 
 (define (rev xs)
-  (letrec ((aux (λ x y ->
-                   (cond ((Ø? x) y)
-                         ((¬O x) ⊥)
-                         (else   (aux (tl x) (:: (hd x) y)))))))
-    (aux xs Ø)))
+  (<->
+   ((α (λ x y ->
+          (cond ((Ø? x) y)
+                ((¬O x) ⊥)
+                (else   (α (tl x) (:: (hd x) y)))))))
+   (α xs Ø)))
 
 ;; less than ideal probably but just testing around
 (define (zip-with f xs ys)
-  (letrec ((aux (λ f x y acc ->
-                   (cond ((⋁ (Ø? x) (Ø? y)) (rev acc))
-                         ((⋁ (¬O x) (¬O y)) ⊥)
-                         (else (aux f (tl x) (tl y) (:: (f (hd x) (hd y)) acc)))))))
-    (aux f xs ys Ø)))
+  (<->
+   ((α (λ f x y acc ->
+          (cond ((⋁ (Ø? x) (Ø? y)) (rev acc))
+                ((⋁ (¬O x) (¬O y)) ⊥)
+                (else (α f (tl x) (tl y) (:: (f (hd x) (hd y)) acc)))))))
+   (α f xs ys Ø)))
 
 (define (zip-with3 f xs ys zs)
-  (letrec
-      ((aux (λ f x y z acc ->
-               (cond
-                ((⋁ (Ø? x) (Ø? y) (Ø? z)) (rev acc))
-                ((⋁ (¬O x) (¬O y) (¬O z)) ⊥)
-                (else (aux f (tl x) (tl y) (tl z) (:: (f (hd x) (hd y) (hd z)) acc)))))))
-    (aux f xs ys zs Ø)))
+  (<->
+   ((α
+     (λ f x y z acc ->
+        (cond
+         ((⋁ (Ø? x) (Ø? y) (Ø? z)) (rev acc))
+         ((⋁ (¬O x) (¬O y) (¬O z)) ⊥)
+         (else (α f (tl x) (tl y) (tl z) (:: (f (hd x) (hd y) (hd z)) acc)))))))
+   (α f xs ys zs Ø)))
 
 (define (sum xs)
   (cond ((Ø? xs) Ø)
         ((¬O xs) ⊥)
         (else    (foldl + 0 xs))))
 
-(define Σ sum)
-
 (define (product xs)
   (cond ((Ø? xs) Ø)
         ((¬O xs) ⊥)
         (else    (foldl * (∆ 0) xs))))
 
-(:= ∏ product)
+(define (factorial n)
+  (<->
+   ((α (λ n acc ->
+          (if (0? n) acc
+              (α (∇ n) (* n acc))))))
+   (α n (∆ 0))))
 
-(:= √ sqrt)
+;;; abbrevs
+(:= $>   apply)
+(:= //   foldl)
+(:= \\   foldr)
+(:= $/>  map)
+(:= Σ    sum)
+(:= ∏    product)
+(:= fact factorial)
+(:= !    fact)
+(:= √    sqrt)
+(:= ζ    zip-with)
+(:= ζ'   zip-with3)
 
 ;; indices should start at 1 goddamnit
-(define ι
-  (λ (map (λ (+ _ 1)) (iota _))))
+(:= ι (λ (map (λ (+ _ 1)) (iota _))))
 
 ;; list-ref with idx starting at 1
 (define (O-ref xs n)
@@ -342,24 +358,20 @@
         ((1? n)  (hd xs))
         (else    (O-ref (tl xs) (∇ n)))))
 
+
+;;;; *** vectors ***
 ;; vector-ref with idx starting at 1
 (define (V-ref xv n)
   (cond ((¬V xv) ⊥)
-        (else (vector-ref xv (∇ n)))))
+        (else    (vector-ref xv (∇ n)))))
 
-(define V* make-vector)
-
-(define (fact n)
-  (letrec ((aux (λ n acc ->
-                   (if (0? n) acc
-                       (aux (∇ n) (* n acc))))))
-    (aux n (∆ 0))))
-
-(define n! (λ (foldl * (∆ 0) (ι _))))
-
+;;; abbrevs
+(:= V* make-vector)
 
 ;;;; *** demo ***
-;; (! 5) => 120
-(:= ! (λ (∏ (ι _))))
+;; two factorial definiton just to show off
+;; second one very APL-like
+(:= !'   (λ (foldl * (∆ 0) (ι _))))
+(:= !''  (λ (∏ (ι _))))
 
 (load "cxr.scm")
