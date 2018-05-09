@@ -84,57 +84,6 @@
 (define-syntax-rule (λ^ . x) (lambda^ . x))
 
 
-;;;; *** let ***
-
-;; ml-style syntax for let*-closures
-;; Example:
-;;   (define (fact n)
-;;     (let^ rec aux :=
-;;           (λ n acc ->
-;;              (if (= n 0) acc
-;;                  (aux (- n 1) (* n acc))))
-;;           and facts := (λ n -> (aux n 1))
-;;           and rec aux2 :=
-;;           (λ n acc ->
-;;              (if (= n 0) acc
-;;                  (aux2 (- n 1) (cons (facts n) acc))))
-;;           in (aux2 n '())))
-;;   (fact 5)
-;;   => (1 2 6 24 120)
-
-(define-syntax let^
-  (lambda (stx)
-    (syntax-case stx (rec :=)
-      ((_ rec x := y c e ...)
-       (cond
-        ((and (identifier? #'x) (free-identifier=? #'c #'in))
-         #'((lambda () (define x y) ((lambda (x) e ...) y))))
-        ((and (identifier? #'x) (free-identifier=? #'c #'and))
-         #'((lambda () (define x y) (let^ e ...))))))
-      ((_     x := y c e ...)
-       (cond
-        ((and (identifier? #'x) (free-identifier=? #'c #'in))
-         #'((lambda (x)       e ...)  y))
-        ((and (identifier? #'x) (free-identifier=? #'c #'and))
-         #'((lambda (x) (let^ e ...)) y)))))))
-
-;; more syntactic sugar
-;; Example:
-;;   (let^^ (x 10) & (y (+ x 19)) & (z (+ x y)) in z)
-;;   => 39
-
-(define-syntax let^^
-  (lambda (stx)
-    (syntax-case stx (^ in)
-      ((_ rec (x y) in  e ...)
-       #'((lambda () (define x y) ((lambda (x) e ...) y))))
-      ((_     (x y) in  e ...)
-       #'((lambda (x) e ...) y))
-      ((_ rec (x y) & e ...)
-       #'((lambda () (define x y) (let^^ e ...))))
-      ((_     (x y) & e ...)
-       #'((lambda (x) (let^^ e ...)) y)))))
-
 ;; quick letrec thanks to dybvig
 (define-syntax rec
   (lambda (stx)
@@ -245,19 +194,24 @@
 (define-syntax-rule (¬Ø . x) (not (null?   . x)))
 (define-syntax-rule (¬V . x) (not (vector? . x)))
 
-(define 0? zero?)
+(define 0? (λ (if (= _    0)                      ⊤ ⊥)))
+(define 1? (λ (if (= _ (∆ 0))                     ⊤ ⊥)))
+(define 2? (λ (if (= _ (∆ (∆ 0)))                 ⊤ ⊥)))
+(define 3? (λ (if (= _ (∆ (∆ (∆ 0))))             ⊤ ⊥)))
+(define 4? (λ (if (= _ (∆ (∆ (∆ (∆ 0)))))         ⊤ ⊥)))
+(define 5? (λ (if (= _ (∆ (∆ (∆ (∆ (∆ 0))))))     ⊤ ⊥)))
+(define 6? (λ (if (= _ (∆ (∆ (∆ (∆ (∆ (∆ 0))))))) ⊤ ⊥)))
 
 (define (every? p xs)
-  (let^ rec aux :=
-        (cond ((Ø? xs)     ⊤)
-              ((p (hd xs)) (aux (tl xs)))
-              (else        ⊥))
-        in (aux p xs)))
+  (letrec ((aux (cond ((Ø? xs)     ⊤)
+                      ((p (hd xs)) (aux (tl xs)))
+                      (else        ⊥))))
+    (aux p xs)))
 
-(define (between? x y z)
+(define (≬ x y z)
   (⋀ (<  x y) (< y z)))
 
-(define ≬ between?)
+(define between? ≬)
 
 (define-syntax ⊼
   (syntax-rules ()
@@ -295,8 +249,7 @@
 (define-syntax if-let
   (lambda (stx)
     (syntax-case stx (:= in)
-      ((_ (x y) e e*)     #'(let ((x y)) (if x e e*)))
-      ((_ x := y in e e*) #'(let^ x := y in (if x e e*))))))
+      ((_ (x y) e e*)     #'(let ((x y)) (if x e e*))))))
 
 (define-syntax when
   (lambda (stx)
@@ -306,8 +259,7 @@
 (define-syntax when-let
   (lambda (stx)
     (syntax-case stx (:= in)
-      ((_ (x y) e ...)     #'(let ((x y)) (when x e ...)))
-      ((_ x := y in e ...) #'(let^ x := y in (when x e ...))))))
+      ((_ (x y) e ...)     #'(let ((x y)) (when x e ...))))))
 
 (define-syntax unless
   (lambda (stx)
@@ -341,30 +293,28 @@
         (else    (foldl (λ x y -> y) Ø xs))))
 
 (define (rev xs)
-  (let^ rec aux :=
-        (λ x y ->
-           (cond ((Ø? x) y)
-                 ((¬O x) ⊥)
-                 (else   (aux (tl x) (:: (hd x) y)))))
-        in (aux xs Ø)))
+  (letrec ((aux (λ x y ->
+                   (cond ((Ø? x) y)
+                         ((¬O x) ⊥)
+                         (else   (aux (tl x) (:: (hd x) y)))))))
+    (aux xs Ø)))
 
 ;; less than ideal probably but just testing around
 (define (zip-with f xs ys)
-  (let^ rec aux :=
-        (λ f x y acc ->
-           (cond ((⋁ (Ø? x) (Ø? y)) (rev acc))
-                 ((⋁ (¬O x) (¬O y)) ⊥)
-                 (else (aux f (tl x) (tl y) (:: (f (hd x) (hd y)) acc)))))
-        in (aux f xs ys Ø)))
+  (letrec ((aux (λ f x y acc ->
+                   (cond ((⋁ (Ø? x) (Ø? y)) (rev acc))
+                         ((⋁ (¬O x) (¬O y)) ⊥)
+                         (else (aux f (tl x) (tl y) (:: (f (hd x) (hd y)) acc)))))))
+    (aux f xs ys Ø)))
 
 (define (zip-with3 f xs ys zs)
-  (let^ rec aux :=
-        (λ f x y z acc ->
-           (cond
-            ((⋁ (Ø? x) (Ø? y) (Ø? z)) (rev acc))
-            ((⋁ (¬O x) (¬O y) (¬O z)) ⊥)
-            (else (aux f (tl x) (tl y) (tl z) (:: (f (hd x) (hd y) (hd z)) acc)))))
-        in (aux f xs ys zs Ø)))
+  (letrec
+      ((aux (λ f x y z acc ->
+               (cond
+                ((⋁ (Ø? x) (Ø? y) (Ø? z)) (rev acc))
+                ((⋁ (¬O x) (¬O y) (¬O z)) ⊥)
+                (else (aux f (tl x) (tl y) (tl z) (:: (f (hd x) (hd y) (hd z)) acc)))))))
+    (aux f xs ys zs Ø)))
 
 (define (sum xs)
   (cond ((Ø? xs) Ø)
@@ -376,7 +326,7 @@
 (define (product xs)
   (cond ((Ø? xs) Ø)
         ((¬O xs) ⊥)
-        (else    (foldl * 1 xs))))
+        (else    (foldl * (∆ 0) xs))))
 
 (:= ∏ product)
 
@@ -388,9 +338,9 @@
 
 ;; list-ref with idx starting at 1
 (define (O-ref xs n)
-  (cond ((Ø? xs)  ⊥)
-        ((= n 1)  (hd xs))
-        (else     (O-ref (tl xs) (∇ n)))))
+  (cond ((Ø? xs) ⊥)
+        ((1? n)  (hd xs))
+        (else    (O-ref (tl xs) (∇ n)))))
 
 ;; vector-ref with idx starting at 1
 (define (V-ref xv n)
@@ -400,13 +350,12 @@
 (define V* make-vector)
 
 (define (fact n)
-  (let^ rec aux :=
-        (λ n acc ->
-           (if (0? n) acc
-               (aux (∇ n) (* n acc))))
-        in (aux n 1)))
+  (letrec ((aux (λ n acc ->
+                   (if (0? n) acc
+                       (aux (∇ n) (* n acc))))))
+    (aux n (∆ 0))))
 
-(define foldfact (λ (foldl * 1 (ι _))))
+(define n! (λ (foldl * (∆ 0) (ι _))))
 
 
 ;;;; *** demo ***
