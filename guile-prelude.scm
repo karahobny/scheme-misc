@@ -9,6 +9,10 @@
 ;; asterisks are there only to denote multiple of the
 ;; corresponding pattern.
 
+;; guix monads library
+;; TODO: applying this to some IO and stateful functions
+(add-to-load-path "/home/jamppa/src/scheme/guile-monads")
+(primitive-load-path "monads.scm")
 
 (use-modules (ice-9 match)
              (ice-9 format)
@@ -368,10 +372,30 @@
 ;;; abbrevs
 (:= V* make-vector)
 
+(load "cxr.scm")
+
+;;;; *** immutability ***
+(define *MutExn* "No side effects allowed, you silly goose.")
+
+(:=/stx (set!     . x) (error 'set!     *MutExn*))
+(:=/stx (set-car! . x) (error 'set-car! *MutExn*))
+(:=/stx (set-cdr! . x) (error 'set-cdr! *MutExn*))
+
+;; REFACTOR: if possible (maybe straight to mands)
+;;           something quick i just whipped out, buggy
+;;           as all hell. need a `ref-do'-notation as well.
+
+;; create a reference with first cons the old value and
+;; the new value second. kinda like an alist atm.
+;; might scrap this altogether.
+
+(:=     >>=/ref   (λ x y -> (list (:: x y))))
+(:=     >>/ref    (λ x -> (t.h x)))
+(:=     >>/@      (λ x -> (h.h x)))
+
+
 ;;;; *** demo ***
 ;; two factorial definiton just to show off
 ;; second one very APL-like
 (:= !'   (λ (foldl * (∆ 0) (ι _))))
 (:= !''  (λ (∏ (ι _))))
-
-(load "cxr.scm")
