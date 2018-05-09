@@ -165,6 +165,7 @@
 (define null '())
 (define Ø    '())
 (define O    list)
+(define V    vector)
 
 ;;; misc.
 (:= succ (λ (+ _ 1)))
@@ -202,12 +203,12 @@
 (define bool? boolean?)
 (define proc? procedure?)
 (define str?  string?)
-(define vec?  vector?)
 (define ::?   pair?)
 ;; bit of cheating, these actually correspond to SV-keyboards slashed O
 (define Ø?    null?)
 ;; cant really use curly brackets so unslashed capital o for list for now
 (define O?    list?)
+(define V?    vector?)
 
 (define N? number?)
 (define ℕ? number?)
@@ -233,8 +234,9 @@
 (define-syntax-rule (/< . x) (not (< . x)))
 ;; negation acts as an implicit question mark
 ;; in these cases.
-(define-syntax-rule (¬O . x) (not (list? . x)))
-(define-syntax-rule (¬Ø . x) (not (null? . x)))
+(define-syntax-rule (¬O . x) (not (list?   . x)))
+(define-syntax-rule (¬Ø . x) (not (null?   . x)))
+(define-syntax-rule (¬V . x) (not (vector? . x)))
 
 (define (every? p xs)
   (let^ rec aux :=
@@ -365,20 +367,26 @@
         ((¬O xs) ⊥)
         (else    (foldl * 1 xs))))
 
-(define ∏ product)
+(:= ∏ product)
 
-(define √ sqrt)
+(:= √ sqrt)
 
 ;; indices should start at 1 goddamnit
 (define ι
   (λ (map (λ (+ _ 1)) (iota _))))
 
-(define (list-ref xs n)
+;; list-ref with idx starting at 1
+(define (O-ref xs n)
   (cond ((Ø? xs)  ⊥)
         ((= n 1)  (hd xs))
-        (else     (list-ref (tl xs) (- n 1)))))
+        (else     (O-ref (tl xs) (- n 1)))))
 
-(define O-ref list-ref)
+;; vector-ref with idx starting at 1
+(define (V-ref xv n)
+  (cond ((¬V xv) ⊥)
+        (else (vector-ref xv (- n 1)))))
+
+(define V* make-vector)
 
 (define (fact n)
   (let^ rec aux :=
@@ -390,6 +398,7 @@
 (define foldfact (λ (foldl * 1 (ι _))))
 
 ;; apl-like demonstration of terse factorial definition
+;; (! 5) => 120
 (:= ! (λ (∏ (ι _))))
 
 (load "cxr.scm")
