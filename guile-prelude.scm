@@ -168,7 +168,12 @@
 (define V    vector)
 
 ;;; misc.
-(:= succ (λ (+ _ 1)))
+(:= inc (λ (+ _ 1)))
+(:=/stx (∆ . x) (inc . x))
+(:= dec (λ (- _ 1)))
+;; nabla really isnt decr operator but lets
+;; just roll with it.
+(:=/stx (∇ . x) (dec . x))
 
 
 ;;;; *** clojure threading macros ***
@@ -222,9 +227,11 @@
 (define ℂ? complex?)
 
 (define-syntax-rule (/\ . x) (and . x))
-(define-syntax-rule (∧  . x) (and . x)) ; unicode logical symbol 'and' (U2227)
+(define-syntax-rule (∧  . x) (and . x)) ; logical'and (U2227)
+(define-syntax-rule (⋀  . x) (and . x)) ; n-ary logical 'and' (U22C0)
 (define-syntax-rule (\/ . x) (or  . x))
-(define-syntax-rule (∨  . x) (or  . x)) ; unicode logical symbol 'or' (U2228)
+(define-syntax-rule (∨  . x) (or  . x)) ; logical 'or' (U2228)
+(define-syntax-rule (⋁  . x) (or  . x)) ; n-ary logical 'or' (U22C1)
 (define-syntax-rule (-. . x) (not . x))
 (define-syntax-rule (¬  . x) (not . x)) ; unicode logical symbol 'not' (U00AC)
 (define-syntax-rule (~  . x) (not . x))
@@ -238,6 +245,8 @@
 (define-syntax-rule (¬Ø . x) (not (null?   . x)))
 (define-syntax-rule (¬V . x) (not (vector? . x)))
 
+(define 0? zero?)
+
 (define (every? p xs)
   (let^ rec aux :=
         (cond ((Ø? xs)     ⊤)
@@ -246,7 +255,9 @@
         in (aux p xs)))
 
 (define (between? x y z)
-  (∧ (<  x y) (<= y z)))
+  (⋀ (<  x y) (< y z)))
+
+(define ≬ between?)
 
 (define-syntax ⊼
   (syntax-rules ()
@@ -341,8 +352,8 @@
 (define (zip-with f xs ys)
   (let^ rec aux :=
         (λ f x y acc ->
-           (cond ((∨ (Ø? x) (Ø? y)) (rev acc))
-                 ((∨ (¬O x) (¬O y)) ⊥)
+           (cond ((⋁ (Ø? x) (Ø? y)) (rev acc))
+                 ((⋁ (¬O x) (¬O y)) ⊥)
                  (else (aux f (tl x) (tl y) (:: (f (hd x) (hd y)) acc)))))
         in (aux f xs ys Ø)))
 
@@ -350,8 +361,8 @@
   (let^ rec aux :=
         (λ f x y z acc ->
            (cond
-            ((∨ (Ø? x) (Ø? y) (Ø? z)) (rev acc))
-            ((∨ (¬O x) (¬O y) (¬O z)) ⊥)
+            ((⋁ (Ø? x) (Ø? y) (Ø? z)) (rev acc))
+            ((⋁ (¬O x) (¬O y) (¬O z)) ⊥)
             (else (aux f (tl x) (tl y) (tl z) (:: (f (hd x) (hd y) (hd z)) acc)))))
         in (aux f xs ys zs Ø)))
 
@@ -379,25 +390,26 @@
 (define (O-ref xs n)
   (cond ((Ø? xs)  ⊥)
         ((= n 1)  (hd xs))
-        (else     (O-ref (tl xs) (- n 1)))))
+        (else     (O-ref (tl xs) (∇ n)))))
 
 ;; vector-ref with idx starting at 1
 (define (V-ref xv n)
   (cond ((¬V xv) ⊥)
-        (else (vector-ref xv (- n 1)))))
+        (else (vector-ref xv (∇ n)))))
 
 (define V* make-vector)
 
 (define (fact n)
   (let^ rec aux :=
         (λ n acc ->
-           (if (= n 0) acc
-               (aux (- n 1) (* n acc))))
+           (if (0? n) acc
+               (aux (∇ n) (* n acc))))
         in (aux n 1)))
 
 (define foldfact (λ (foldl * 1 (ι _))))
 
-;; apl-like demonstration of terse factorial definition
+
+;;;; *** demo ***
 ;; (! 5) => 120
 (:= ! (λ (∏ (ι _))))
 
