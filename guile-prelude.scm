@@ -1,5 +1,9 @@
 ;; -*- geiser-scheme-implementation: guile -*-
 
+;; had some nice help at the folks from r/scheme. Thanks to you all.
+
+;; TODO: modulize these when you have the time
+
 ;; general abbreviations on macro patterns to match are:
 ;; x, y, z, a, b, c => single variables or values. a can also stand for args.
 ;; v ...             => multiple variables or values
@@ -11,22 +15,43 @@
 
 ;; guix monads library
 ;; TODO: applying this to some IO and stateful functions
+(add-to-load-path "/home/jamppa/src/scheme/")
 (add-to-load-path "/home/jamppa/src/scheme/guile-monads")
-(primitive-load-path "monads.scm")
+;; (primitive-load-path "monads.scm")
 
-(use-modules (ice-9 match)
-             (ice-9 format)
-             (ice-9 control)
-             (ice-9 curried-definitions)
-             (srfi  srfi-1)
-             (srfi  srfi-9  gnu)
-             (srfi  srfi-26)
-             (srfi  srfi-41)
-             (oop   goops))
+(use-modules (ice-9  match)
+             (ice-9  format)
+             (ice-9  control)
+             (ice-9  curried-definitions)
+             (srfi   srfi-1)
+             (srfi   srfi-9)
+             (srfi   srfi-26)
+             (srfi   srfi-41)
+             (monads)
+             (monads io)
+             (oop    goops))
 
 (read-enable  'r7rs-symbols)
 (print-enable 'r7rs-symbols)
 
+;; quick guide to abbreviatons:
+;; / <- procedure to be applied on list (from left side).
+;;      generally standing for a list, since they are evaluated
+;;      from the left by default.
+;; \ <- procedure to be applied on a list (from right side)
+;;      (also works as a lambda-operator ala Haskell)
+;; $> <- apply operator to the following
+;; ^> <- compose operator to the preceding (ie. /^> := foldl).
+;; @  <- reference to the nth element
+;;       (ie. O@, V@ := O-ref and V-ref respectively).
+;; $^> <- compose from the applied procedures
+;;        (ie. $>^>'', compose from two lists and apply proc to the first
+;;         element of each one of them to each other.
+;; '   <- quote works in a three-fold way. a derivative of a proc,
+;;        identifying something as a list (like generally `quote' works as)
+;;        or as a counter for the number of lists the function is applied to.
+
+;; usage of these might be contradictory atm but i wish to adjust them properly.
 
 ;;;; *** lambda ***
 ;; either \ or λ to stand for enhanced lambda.
@@ -41,43 +66,35 @@
 ;; resort to basic lambda notation in those cases.
 
 ;; Example:
-;;  ((λ x y -> (+ x y)) 5 10) => 15
+;;  ((λ x y => (+ x y)) 5 10) => 15
 ;;  ((λ (+ _ 10)) 5)          => 15
+(define-syntax =>
+  (identifier-syntax
+   (syntax-violation #f "misplaced aux keyword" #'=>)))
 
-(define-syntax \
-  (lambda (stx)
-    (syntax-case stx (-> ..)
-      ((\ (e ...))
-       (with-syntax ((x (datum->syntax #'\ '_))) #'(lambda (x) (e ...))))
-      ((_ v ..  -> (e ...)) #'(lambda v (e ...)))       ; lambda rest arg case
-      ((_ v ... -> (e ...)) #'(lambda (v ...) (e ...))) ; check for parens on the expr
-      ((_ x y   ->  e ...)  #'(lambda (x y) e ...))     ; for cases like cheap `last'
-      ((_ x     ->  e ...)  #'(lambda (x) e ...))       ; id
-      ((_       ->  e ...)  #'(lambda () e ...))
-      ((_ . r)              #'(lambda . r)))))          ; regular lambda-form
+(define-syntax ..
+  (identifier-syntax
+   (syntax-violation #f "misplaced aux keyword" #'..))
 
 (define-syntax λ
   (lambda (stx)
-    (syntax-case stx (-> ..)
+    (syntax-case stx(=> ..)
       ((λ (e ...))
        (with-syntax ((x (datum->syntax #'λ '_))) #'(lambda (x) (e ...))))
-      ((_ v ..  -> (e ...)) #'(lambda v (e ...)))
-      ((_ v ... -> (e ...)) #'(lambda (v ...) (e ...)))
-      ((_ x y   ->  e ...)  #'(lambda (x y) e ...))
-      ((_ x     ->  e ...)  #'(lambda (x) e ...))
-      ((_       ->  e ...)  #'(lambda () e ...))
+      ((_ v ..  => (e ...)) #'(lambda v (e ...)))
+      ((_ v ... => (e ...)) #'(lambda (v ...) (e ...)))
+      ((_ x y   =>  e ...)  #'(lambda (x y) e ...))
+      ((_ x     =>  e ...)  #'(lambda (x) e ...))
+      ((_       =>  e ...)  #'(lambda () e ...))
       ((_ . r)              #'(lambda . r)))))
-
-(define Y
-  (λ f -> ((λ (_ _)) (λ (f (λ a .. -> (apply (_ _) a)))))))
 
 (define-syntax lambda^
   (lambda (stx)
     (syntax-case stx ()
       ((_ v e e* ...)
-       #'(λ v ->
+       #'(λ v =>
             (call/cc
-             (λ escape ->
+             (λ escape =>
                 (syntax-parameterize
                     ((return
                       (syntax-rules ()
@@ -89,11 +106,22 @@
 
 
 ;;;; *** primitives ***
+;;; define / define-syntax-rule
 ;; fast assignment for corner-cases where
 ;; you want terse code fast, one-liners etc.
 ;;  not to be really used.
 (define-syntax-rule (:=     . x) (define             . x))
 (define-syntax-rule (:=/stx . x) (define-syntax-rule . x))
+
+;;; cons
+(define-syntax-rule (::  . x) (cons  . x))
+(define-syntax-rule (::* . x) (cons* . x))
+
+;;; apply / compose
+;; $> for general applying procs, and ^> for
+;; composing procs.
+(define $> apply)
+(define ^> compose)
 
 ;;; cxr
 ;; car
@@ -102,52 +130,63 @@
 ;; cdr
 (define tl   cdr)
 (define tail cdr)
+;; rest
+(load "cxr.scm")
 
-;;; lists
-(define-syntax-rule (::  . x) (cons  . x))
-(define-syntax-rule (::* . x) (cons* . x))
-
+;;; lists / vectors
 (define null '())
 (define Ø    '())
 (define O    list)
 (define V    vector)
 
-;;; let
-(define-syntax-rule (->  . x) (let     . x))
-(define-syntax-rule (=>  . x) (let*    . x))
-(define-syntax-rule (<-> . x) (letrec  . x))
-(define-syntax-rule (<=> . x) (letrec* . x))
+(:= O^> make-list)
+(:= V^> make-vector)
 
-;; quick letrec thanks to dybvig
+
+;;;; *** let ***
+
+;; Example:
+;;         (let^ α 10 β 20 γ (+ α β) in γ)
+;; Use linebreaks atm to differentiate between the vars
+;; and their binds from each other.
+
 (define-syntax rec
-  (syntax-rules ()
-    ((_ (x . v) e) (letrec ((x (lambda v . e))) e))
-    ((_ x y)       (letrec ((x y)) x))))
+  (identifier-syntax
+   (syntax-violation #f "misplaced aux keyword" #'rec)))
+
+(define-syntax in
+  (identifier-syntax
+   (syntax-violation #f "misplaced aux keyword" #'in)))
+
+(define-syntax let^
+  (syntax-rules (rec in)
+    ((_ rec x y in e ...) ((lambda ()  (define x y)  e ...)))
+    ((_ rec x y    r ...) ((lambda ()  (define x y)  (let^ r ...))))
+    ((_     x y in e ...) ((lambda (x) e ...)        y))
+    ((_     x y    r ...) ((lambda (x) (let^ r ...)) y))))
 
 ;;; misc.
-(:= inc (λ (+ _ 1)))
-(:= dec (λ (- _ 1)))
+(:= √ sqrt)
 
-(:= ∆ inc)
-(:= ∇ dec)
+(:= inc (λ (+ _ 1))) (:= ∆ inc)
+(:= dec (λ (- _ 1))) (:= ∇ dec)
+
 ;; nb. nabla really isnt decr operator but
 ;; lets just roll with it.
 
 
 ;;;; *** clojure threading macros ***
 (define-syntax ~>
-  (lambda (stx)
-    (syntax-case stx ()
-      ((_ x)               #'x)
-      ((_ x ... (y z ...)) #'(y (~> x ...) z ...))
-      ((_ x ... y)         #'(y (~> x ...))))))
+  (syntax-rules ()
+    ((_ x)               x)
+    ((_ x ... (y z ...)) (y (~> x ...) z ...))
+    ((_ x ... y)         (y (~> x ...)))))
 
 (define-syntax ~>>
-  (lambda (stx)
-    (syntax-case stx ()
-      ((_ x)               #'x)
-      ((_ x ... (y z ...)) #'(y z ... (~>> x ...)))
-      ((_ x ... y)         #'(y (~>> x ...))))))
+  (syntax-rules ()
+    ((_ x)               x)
+    ((_ x ... (y z ...)) (y z ... (~>> x ...)))
+    ((_ x ... y)         (y (~>> x ...)))))
 
 
 ;;;; *** bool ***
@@ -203,23 +242,23 @@
 (define-syntax-rule (¬Ø . x) (not (null?   . x)))
 (define-syntax-rule (¬V . x) (not (vector? . x)))
 
-(define 0? (λ (if (= _    0)                      ⊤ ⊥)))
-(define 1? (λ (if (= _ (∆ 0))                     ⊤ ⊥)))
-(define 2? (λ (if (= _ (∆ (∆ 0)))                 ⊤ ⊥)))
-(define 3? (λ (if (= _ (∆ (∆ (∆ 0))))             ⊤ ⊥)))
-(define 4? (λ (if (= _ (∆ (∆ (∆ (∆ 0)))))         ⊤ ⊥)))
-(define 5? (λ (if (= _ (∆ (∆ (∆ (∆ (∆ 0))))))     ⊤ ⊥)))
-(define 6? (λ (if (= _ (∆ (∆ (∆ (∆ (∆ (∆ 0))))))) ⊤ ⊥)))
+;; church style succ of zero
+(define =0? (λ (if (= _    0)                      ⊤ ⊥)))
+(define =1? (λ (if (= _ (∆ 0))                     ⊤ ⊥)))
+(define =2? (λ (if (= _ (∆ (∆ 0)))                 ⊤ ⊥)))
+(define =3? (λ (if (= _ (∆ (∆ (∆ 0))))             ⊤ ⊥)))
+(define =4? (λ (if (= _ (∆ (∆ (∆ (∆ 0)))))         ⊤ ⊥)))
+(define =5? (λ (if (= _ (∆ (∆ (∆ (∆ (∆ 0))))))     ⊤ ⊥)))
+(define =6? (λ (if (= _ (∆ (∆ (∆ (∆ (∆ (∆ 0))))))) ⊤ ⊥)))
 
 (define (every? p xs)
-  (<->
-   ((α (cond ((Ø? xs)     ⊤)
-             ((p (hd xs)) (α (tl xs)))
-             (else        ⊥))))
-   (α p xs)))
+  (let^ rec α (cond ((Ø? xs)     ⊤)
+                    ((p (hd xs)) (α (tl xs)))
+                    (else        ⊥))
+        in (α p xs)))
 
 (define (≬ x y z)
-  (⋀ (<  x y) (< y z)))
+  (⋀ (< x y) (< y z)))
 
 (define between? ≬)
 
@@ -236,12 +275,6 @@
 (:=/stx (nand . x) (⊼ . x))
 (:=/stx (nor  . x) (⊽ . x))
 
-;;;; *** io ***
-(:= \n newline)
-(define (println . str)
-  (for-each display str)
-  (\n))
-
 ;;; if sugared / when / unless
 ;; denoted simply by prime to take advantage
 ;; of emacs font-lock / highlighting
@@ -256,7 +289,7 @@
 
 (define-syntax if-let
   (syntax-rules ()
-    ((_ (x y) e e*) (-> ((x y)) (if x e e*)))))
+    ((_ (x y) e e*) (let ((x y)) (if x e e*)))))
 
 (define-syntax when
   (syntax-rules ()
@@ -264,7 +297,7 @@
 
 (define-syntax when-let
   (syntax-rules ()
-    ((_ (x y) e ...) (-> ((x y)) (when x e ...)))))
+    ((_ (x y) e ...) (let ((x y)) (when x e ...)))))
 
 (define-syntax unless
   (syntax-rules ()
@@ -274,84 +307,10 @@
 ;;;; *** list functions ***
 ;; little schemer fame
 (define rember
-  (λ x ys ->
+  (λ x ys =>
      (cond ((Ø? ys)       Ø)
            ((= x (hd ys)) (tl ys))
            (else          (:: (hd ys) (rember x (tl ys)))))))
-
-(define (foldl f n xs)
-  (if (Ø? xs) n
-      (foldl f (f n (hd xs)) (tl xs))))
-
-(define (foldr f n xs)
-  (if (Ø? xs) n
-      (f (hd xs) (foldr f n (tl xs)))))
-
-(define (map f xs)
-  (if (Ø? xs) Ø
-      (:: (f (hd xs)) (map f (tl xs)))))
-
-(define (last xs)
-  (cond ((Ø? xs) Ø)
-        ((¬O xs) ⊥)
-        (else    (foldl (λ x y -> y) Ø xs))))
-
-(define (rev xs)
-  (<->
-   ((α (λ x y ->
-          (cond ((Ø? x) y)
-                ((¬O x) ⊥)
-                (else   (α (tl x) (:: (hd x) y)))))))
-   (α xs Ø)))
-
-;; less than ideal probably but just testing around
-(define (zip-with f xs ys)
-  (<->
-   ((α (λ f x y acc ->
-          (cond ((⋁ (Ø? x) (Ø? y)) (rev acc))
-                ((⋁ (¬O x) (¬O y)) ⊥)
-                (else (α f (tl x) (tl y) (:: (f (hd x) (hd y)) acc)))))))
-   (α f xs ys Ø)))
-
-(define (zip-with3 f xs ys zs)
-  (<->
-   ((α
-     (λ f x y z acc ->
-        (cond
-         ((⋁ (Ø? x) (Ø? y) (Ø? z)) (rev acc))
-         ((⋁ (¬O x) (¬O y) (¬O z)) ⊥)
-         (else (α f (tl x) (tl y) (tl z) (:: (f (hd x) (hd y) (hd z)) acc)))))))
-   (α f xs ys zs Ø)))
-
-(define (sum xs)
-  (cond ((Ø? xs) Ø)
-        ((¬O xs) ⊥)
-        (else    (foldl + 0 xs))))
-
-(define (product xs)
-  (cond ((Ø? xs) Ø)
-        ((¬O xs) ⊥)
-        (else    (foldl * (∆ 0) xs))))
-
-(define (factorial n)
-  (<->
-   ((α (λ n acc ->
-          (if (0? n) acc
-              (α (∇ n) (* n acc))))))
-   (α n (∆ 0))))
-
-;;; abbrevs
-(:= $>   apply)
-(:= //   foldl)
-(:= \\   foldr)
-(:= $/>  map)
-(:= Σ    sum)
-(:= ∏    product)
-(:= fact factorial)
-(:= !    fact)
-(:= √    sqrt)
-(:= ζ    zip-with)
-(:= ζ'   zip-with3)
 
 ;; indices should start at 1 goddamnit
 (:= ι (λ (map (λ (+ _ 1)) (iota _))))
@@ -359,43 +318,103 @@
 ;; list-ref with idx starting at 1
 (define (O-ref xs n)
   (cond ((Ø? xs) ⊥)
-        ((1? n)  (hd xs))
+        ((=1? n) (hd xs))
         (else    (O-ref (tl xs) (∇ n)))))
 
+(:= O@ O-ref)
+
+(define (foldl f n xs)
+  (if (Ø? xs) n
+      (foldl f (f n (hd xs)) (tl xs))))
+
+(:= /^>  foldl)
+
+(define (foldr f n xs)
+  (if (Ø? xs) n
+      (f (hd xs) (foldr f n (tl xs)))))
+
+(:= \^>  foldr)
+
+(define (map f xs)
+  (if (Ø? xs) Ø
+      (:: (f (hd xs)) (map f (tl xs)))))
+
+(:= $/>  map)
+
+(define (last xs)
+  (cond ((Ø? xs) Ø)
+        ((¬O xs) ⊥)
+        (else    (/^> (λ x y => y) Ø xs))))
+
+(define (rev xs)
+  (let^ rec α (λ x y =>
+                 (cond ((Ø? x) y)
+                       ((¬O x) ⊥)
+                       (else   (α (tl x) (:: (hd x) y)))))
+        in (α xs Ø)))
+
+;; less than ideal probably but just testing around
+(define (zip-with f xs ys)
+  (let^ rec α (λ f x y acc =>
+                 (cond ((⋁ (Ø? x) (Ø? y)) (rev acc))
+                       ((⋁ (¬O x) (¬O y)) ⊥)
+                       (else              (α f (tl x) (tl y)
+                                             (:: (f (hd x) (hd y)) acc)))))
+        in (α f xs ys Ø)))
+
+(define (zip-with3 f xs ys zs)
+  (let^ rec α (λ f x y z acc =>
+                 (cond ((⋁ (Ø? x) (Ø? y) (Ø? z)) (rev acc))
+                       ((⋁ (¬O x) (¬O y) (¬O z)) ⊥)
+                       (else
+                        (α f (tl x) (tl y) (tl z)
+                           (:: (f (hd x) (hd y) (hd z)) acc)))))
+        in (α f xs ys zs Ø)))
+
+(define (sum xs)
+  (cond ((Ø? xs) Ø)
+        ((¬O xs) ⊥)
+        (else    (/^> + 0 xs))))
+
+(:= Σ sum)
+
+(define (product xs)
+  (cond ((Ø? xs) Ø)
+        ((¬O xs) ⊥)
+        (else    (/^> * (∆ 0) xs))))
+
+(:= ∏ product)
+
+(define (factorial n)
+  (let^ rec α (λ n acc =>
+                 (if (=0? n) acc
+                     (α (∇ n) (* n acc))))
+        in (α n (∆ 0))))
+
+(:= fact factorial)
+(:= !    factorial)
+
+;; Y-combinator
+(define Y
+  (λ f => ((λ (_ _)) (λ (f (λ a .. => ($> (_ _) a)))))))
 
 ;;;; *** vectors ***
 ;; vector-ref with idx starting at 1
+;; TODO: implement this independtly of vector-ref
 (define (V-ref xv n)
   (cond ((¬V xv) ⊥)
         (else    (vector-ref xv (∇ n)))))
 
-;;; abbrevs
-(:= V* make-vector)
+(:= V@ V-ref)
 
-(load "cxr.scm")
 
 ;;;; *** immutability ***
-(define *MutExn* "No side effects allowed, you silly goose.")
-
-(:=/stx (set!     . x) (error 'set!     *MutExn*))
-(:=/stx (set-car! . x) (error 'set-car! *MutExn*))
-(:=/stx (set-cdr! . x) (error 'set-cdr! *MutExn*))
-
-;; REFACTOR: if possible (maybe straight to mands)
-;;           something quick i just whipped out, buggy
-;;           as all hell. need a `ref-do'-notation as well.
-
-;; create a reference with first cons the old value and
-;; the new value second. kinda like an alist atm.
-;; might scrap this altogether.
-
-(:=     >>=/ref   (λ x y -> (list (:: x y))))
-(:=     >>/ref    (λ x -> (t.h x)))
-(:=     >>/@      (λ x -> (h.h x)))
+(define-syntax-rule (set!     . x) (error "mutation disallowed"))
+(define-syntax-rule (set-car! . x) (error "mutation disallowed"))
+(define-syntax-rule (set-cdr! . x) (error "mutation disallowed"))
 
 
 ;;;; *** demo ***
 ;; two factorial definiton just to show off
-;; second one very APL-like
-(:= !'   (λ (foldl * (∆ 0) (ι _))))
+(:= !'   (λ (/^> * 1 (ι _))))
 (:= !''  (λ (∏ (ι _))))
