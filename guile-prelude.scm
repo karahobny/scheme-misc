@@ -55,8 +55,8 @@
 
 ;;;; *** lambda ***
 ;; either \ or λ to stand for enhanced lambda.
-;; `->' to separate variables from the expression.
-;; without variables and `->', uses a single variable
+;; `=>' to separate variables from the expression.
+;; without variables and `=>', uses a single variable
 ;; accesed with an underscore, `_'.
 
 ;; lambda rest args works with two dots after arg now.
@@ -74,7 +74,7 @@
 
 (define-syntax ..
   (identifier-syntax
-   (syntax-violation #f "misplaced aux keyword" #'..))
+   (syntax-violation #f "misplaced aux keyword" #'..)))
 
 (define-syntax λ
   (lambda (stx)
