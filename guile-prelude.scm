@@ -85,8 +85,12 @@
       ((_ v ... => (e ...)) #'(lambda (v ...) (e ...)))
       ((_ x y   =>  e ...)  #'(lambda (x y) e ...))
       ((_ x     =>  e ...)  #'(lambda (x) e ...))
-      ((_       =>  e ...)  #'(lambda () e ...))
       ((_ . r)              #'(lambda . r)))))
+
+;; temporary solution for thunk
+(define-syntax λ.=>
+  (syntax-rules ()
+    ((_ . x) (lambda () . x))))
 
 (define-syntax lambda^
   (lambda (stx)
@@ -104,6 +108,8 @@
 
 (define-syntax-rule (λ^ . x) (lambda^ . x))
 
+(define-syntax fun
+  (syntax-rules =>
 
 ;;;; *** exceptions ***
 ;; type exceptions raised with Exn : Type 'function 'type-required.
@@ -235,7 +241,7 @@
 (define ⊥     #f) ; falsum (up tack) (U22A5)
 
 (define bool? boolean?)
-(define proc? procedure?)
+(define fn? procedure?)
 (define sym?  symbol?)
 (define str?  string?)
 (define _?    char?)
@@ -247,17 +253,6 @@
 (define O?  list?)
 (define V?  vector?)
 (define *V? bitvector?)
-
-(define N number?)
-(define ℕ number?)
-(define Z integer?)
-(define ℤ integer?)
-(define R real?)
-(define ℝ real?)
-(define Q rational?)
-(define ℚ rational?)
-(define C complex?)
-(define ℂ complex?)
 
 (load "logic.scm")
 
@@ -343,82 +338,96 @@
     ((_    x)              (syntax-error "Clause has no expression to test for" x))))
 
 
+;;;; *** contracts ***
+;; Copyright 2017- Linus Björstam
+;; with little modifications by me
+
+;; Example:
+;; (define/c (sum (xs : (Listof ℕ)) -> ℕ)
+;;  (case-of || (Ø? xs) => Ø || (¬O xs) => ⊥ || else => (foldl + 0 xs)))
+
+;; Currently supports types:
+;; Fn (procedure?), List (list?), Num (number?)
+;; Int (integer?), Str (string?), Any/α/a' (anything)
+;; ListOf x (checks predicate for every member of list)
+;; VectorOf x (checks predicate for every member of list)
+
+(load "contracts.scm")
+
+
 ;;;; *** list functions ***
 ;; little schemer fame
-(define rember
-  (λ x ys =>
-     (case-of || (Ø? ys)       => Ø
-              || (= x (hd ys)) => (tl ys)
-              || else          => (:: (hd ys) (rember x (tl ys))))))
+(define/c (rember ((x : α) (ys : List)) -> List)
+  (case-of || (Ø? ys)       => Ø
+           || (= x (hd ys)) => (tl ys)
+           || else          => (:: (hd ys) (rember x (tl ys)))))
 
 ;; indices should start at 1 goddamnit
-(define ι (λ (map (λ (+ _ 1)) (iota _))))
+(define/c (ι (n : ℕ) -> List)
+  (map (λ (+ _ 1)) (iota n)))
+
 
 ;; list-ref with idx starting at 1
-(define (O-ref xs n)
+(define/c (O-ref ((xs : List) (n : ℤ)) -> α)
   (case-of || (Ø? xs) => ⊥
            || (1? n)  => (hd xs)
            || else    => (O-ref (tl xs) (∇ n))))
 
-(define (foldl f n xs)
+(define/c (foldl ((f : Fn) (n : α) (xs : List)) -> α)
   (case-of || (Ø? xs) => n
            || else    => (foldl f (f n (hd xs)) (tl xs))))
 
-(define (foldr f n xs)
+(define/c (foldr ((f : Fn) (n : α) (xs : List)) -> α)
   (case-of || (Ø? xs) => n
            || else    => (f (hd xs) (foldr f n (tl xs)))))
 
-(define (map f xs)
+(define/c (map ((f : Fn) (xs : List)) -> List)
   (case-of || (Ø? xs) => Ø
            || else    => (:: (f (hd xs)) (map f (tl xs)))))
 
-(define (last xs)
+(define/c (last (xs : List) -> α)
   (case-of || (Ø? xs) => Ø
-           || (¬O xs) => (error "type mismatch; expecting list")
            || else    => (foldl (λ x y => y) Ø xs)))
 
-(define (rev xs)
+(define/c (rev (xs : List) -> List)
   (ε rec α (λ x y =>
               (case-of || (Ø? x) => y
-                       || (¬O x) => (error "type mismatch; expecting list")
                        || else   => (α (tl x) (:: (hd x) y))))
      in (α xs Ø)))
 
 ;; less than ideal probably but just testing around
-(define (zip-with f xs ys)
+(define/c (zip-with ((f : Fn) (xs : List) (ys : List)) -> List)
   (ε rec α (λ f x y acc =>
               (case-of || (⋁ (Ø? x) (Ø? y)) => (rev acc)
-                       || (⋁ (¬O x) (¬O y)) => (error "type mismatch; expecting lists")
                        || else              => (α f (tl x) (tl y)
                                                 (:: (f (hd x) (hd y)) acc))))
      in (α f xs ys Ø)))
 
-(define (zip-with3 f xs ys zs)
+(define/c (zip-with3 ((f : Fn) (xs : List) (ys : List) (zs : List)) -> List)
   (ε rec α (λ f x y z acc =>
               (case-of || (⋁ (Ø? x) (Ø? y) (Ø? z)) => (rev acc)
-                       || (⋁ (¬O x) (¬O y) (¬O z)) => (error "type mismatch; expecting lists")
                        || else => (α f (tl x) (tl y) (tl z)
                                    (:: (f (hd x) (hd y) (hd z)) acc))))
      in (α f xs ys zs Ø)))
 
-(define (sum xs)
+(define/c (sum (xs : (Listof ℕ)) -> ℕ)
   (case-of || (Ø? xs) => Ø || (¬O xs) => ⊥ || else => (foldl + 0 xs)))
 
 (define Σ sum)
 
-(define (product xs)
+(define/c (product (xs : (Listof ℕ)) -> ℕ)
   (case-of || (Ø? xs) Ø || (¬O xs) => ⊥ || else => (foldl * 1 xs)))
 
 (define ∏ product)
 
-(define (O# xs)
-  (case-of || (¬O xs) => (error "type mismatch; expecting list")
-           || else    => (ε rec α (λ xs acc =>
-                                   (if (Ø? xs) acc
-                                       (α (tl xs) (∆ acc))))
-                          in (α xs 0))))
+(define/c (O# (xs : List) -> ℤ)
+  (ε rec α (λ xs acc =>
+              (if (Ø? xs) acc
+                  (α (tl xs) (∆ acc))))
+     in (α xs 0)))
 
-(define (factorial n)
+
+(define/c (factorial (n : ℕ) -> ℕ)
   (ε rec α (λ n acc =>
               (if (0? n) acc
                   (α (∇ n) (* n acc))))
@@ -436,15 +445,15 @@
 ;;           translate vector to list and using O-ref.
 
 ;; vector-ref with idx starting at 1
-(define (V-ref xv n)
+;; xv => vector, n => integer, return-val => any
+(define/c (V-ref ((xv : Vec) (n : ℤ)) -> α)
   (O-ref (V->O xv) n))
 
 (define V@ V-ref)
 
 ;; vector-length
-(define (V# xv)
-  (case-of || (¬V xv) => (error "type mismatch; expecting vector")
-           || else    => (O# (V->O xv))))
+(define/c (V# (xv : Vec) -> ℤ)
+  (O# (V->O xv)))
 
 
 ;;;; *** immutability ***
