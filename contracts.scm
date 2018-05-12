@@ -107,7 +107,7 @@
 
 (define-syntax define/c
   (syntax-rules (: ->)
-    [(_ (id ((var : pred?) ...) -> return-pred?) body ...)
+    ((_ (id ((var : pred?) ...) -> return-pred?) body ...)
      (define (id var ...)
        (define (%INTERNAL_PROC)
          body ...)
@@ -115,8 +115,8 @@
        (let ((%return-value (%INTERNAL_PROC)))
          (if (return-pred? %return-value)
              %return-value
-             (error 'define/contract "contract error"))))]
-    [(_ (id (var : pred?) -> return-pred?) body ...)
+             (error 'define/contract "contract error")))))
+    ((_ (id (var : pred?) -> return-pred?) body ...)
      (define (id var)
        (define (%INTERNAL_PROC)
          body ...)
@@ -125,4 +125,4 @@
        (let ((%return-value (%INTERNAL_PROC)))
          (if (return-pred? %return-value)
              %return-value
-             (error 'define/contract "contract error"))))]))
+             (error 'define/contract "contract error")))))))
