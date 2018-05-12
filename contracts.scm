@@ -16,64 +16,75 @@
 
 ;; WIP: more added when needed
 
+;; (define Every
+;;   (case-lambda
+;;     ((pred? lst)
+;;      (est loop := (lst lst) in
+;;           (case-of || (null? lst)      => ⊤
+;;                    || (pred? (hd lst)) => (loop (tl lst))
+;;                    || else             => ⊥)))
+;;     ((pred? lst . lsts) (raise "not-yet"))))
+
 (define Every
-  (case-lambda
-    [(pred? lst)
-     (let loop ([lst lst])
-       (cond
-        [(null? lst)       #t]
-        [(pred? (hd lst)) (loop (tl lst))]
-        [else              #f]))]
-    [(pred? lst . lsts) (raise "not-yet")]))
+  (λ p xs =>
+     (let loop ((xs xs))
+       (case-of
+        || (Ø? xs)     => ⊤
+        || (p (hd xs)) => (loop (tl xs))
+        || else        => ⊥))))
+
+
+(define (Or . preds)
+  (λ x =>
+     (let loop ((preds preds))
+       (case-of
+        || (null? preds) => ⊥
+        || (hd preds)    => x
+        || else          => (loop (tl preds))))))
+
 
 (define Pair pair?)
 (define List list?)
-(define (ListOf pred?)
+(define (ListOf p)
   (λ x =>
-     (case-of || (list? x) => (Every pred? x)
-              || else      => #f)))
+     (case-of || (O? x) => (Every p x)
+              || else   => ⊥)))
 
 (define Vec vector?)
-(define (VectorOf pred?)
+(define (VectorOf p)
   (λ x =>
      (ε len (vector-length x) in
        (let loop ((i 0))
-         (case-of || (= i len)                => ⊤
-                  || (pred? (vector-ref x i)) => (loop (∆ i))
-                  || else                     => ⊥)))))
+         (case-of || (= i len)            => ⊤
+                  || (p (vector-ref x i)) => (loop (∆ i))
+                  || else                 => ⊥)))))
 
-(define Fn  procedure?)
+(define Fn   procedure?)
 (define Bool boolean?)
 
 (define Symbol symbol?)
-(define Char char?)
-(define Str string?)
+(define Char   char?)
+(define Str    string?)
 
 (define Num number?)
-(define N number?)
-(define ℕ number?)
+(define ℕ   number?)
 
 (define Int integer?)
-(define Z integer?)
-(define ℤ integer?)
+(define ℤ   integer?)
 
 (define Real real?)
-(define Float real?)
-(define R real?)
-(define ℝ real?)
+(define ℝ    real?)
 
 (define Rational rational?)
-(define Q rational?)
-(define ℚ rational?)
+(define ℚ        rational?)
 
 (define Complex complex?)
-(define C complex?)
-(define ℂ complex?)
+(define ℂ       complex?)
 
 ;; any/c
-(define (Any x) #t)
-(define (a' x)  #t)
-(define (α x)   #t)
+(define (Any x) ⊤)
+(define (a'  x) ⊤)
+(define (α   x) ⊤)
 
 (define-syntax-parameter :
   (lambda (stx)

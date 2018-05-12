@@ -78,7 +78,7 @@
 
 (define-syntax λ
   (lambda (stx)
-    (syntax-case stx(=> ..)
+    (syntax-case stx( => ..)
       ((λ (e ...))
        (with-syntax ((x (datum->syntax #'λ '_))) #'(lambda (x) (e ...))))
       ((_ v ..  => (e ...)) #'(lambda v (e ...)))
@@ -108,34 +108,18 @@
 
 (define-syntax-rule (λ^ . x) (lambda^ . x))
 
-(define-syntax fun
-  (syntax-rules =>
 
 ;;;; *** exceptions ***
-;; type exceptions raised with Exn : Type 'function 'type-required.
-;; Exn : Mut 'function => binded to side-effecting syntax you want to disallow.
-
 (define-syntax-rule (raise-stx . x) (syntax-error . x))
 
 
 ;;;; *** primitives ***
-;;; define / define-syntax-rule
-;; fast assignment for corner-cases where
-;; you want terse code fast, one-liners etc.
-;;  not to be really used.
-(define-syntax-rule (:=     . x) (define             . x))
-(define-syntax-rule (≝      . x) (define             . x))
-(define-syntax-rule (:=/stx . x) (define-syntax-rule . x))
-
 ;;; cons
 (define-syntax-rule (::  . x) (cons  . x))
 (define-syntax-rule (::* . x) (cons* . x))
 
 ;;; apply / compose
-;; $> for general applying procs, and ^> for
-;; composing procs.
-(define $> apply)
-(define ^> compose)
+(define <$> apply)
 
 ;;; cxr
 ;; car
@@ -153,19 +137,18 @@
 (define O    list)
 (define V    vector)
 
-(:= O^>  make-list)
-(:= V^>  make-vector)
-(:= O->V list->vector)
-(:= V->O vector->list)
+(define O->V list->vector)
+(define V->O vector->list)
 
 ;;; misc.
-(:= inc (λ (+ _ 1)))
-(:= ∆ inc)
-(:= dec (λ (- _ 1)))
-(:= ∇ dec)
+(define inc (λ (+ _ 1)))
+(define dec (λ (- _ 1)))
+
+(define ∆ inc)
+(define ∇ dec)
 ;; nb. nabla really isnt decr operator but
 ;; lets just roll with it.
-(:= √ sqrt)
+(define √ sqrt)
 
 
 ;;;; *** let ***
@@ -188,10 +171,17 @@
 
 (define-syntax est
   (syntax-rules (rec in)
+    ;; letrec*
     ((_ rec x y in e ...) ((lambda ()  (define x y)  e ...)))
     ((_ rec x y    r ...) ((lambda ()  (define x y)  (est r ...))))
+    ;; let*
     ((_     x y in e ...) ((lambda (x) e ...)        y))
     ((_     x y    r ...) ((lambda (x) (est r ...))  y))))
+
+;; like peano used to indicate something as an element
+;; of a set with an ε (greek letter) as in `est` (is),
+;; might as well use this too to indicate let closures
+(define-syntax-rule (ε . x) (est . x))
 
 (define-syntax let
   (syntax-rules ()
@@ -207,11 +197,47 @@
     ((let* ((x y) r ...) e ...)
      ((lambda (x) (let* (r ...) e ...)) y))))
 
-;; like peano used to indicate something as an element
-;; of a set with an ε (greek letter) as in `est` (is),
-;; might as well use this too to indicate let closures
-(define-syntax-rule (ε . x) (est . x))
 
+;;;; *** sugared cond ***
+(define-syntax ||
+  (identifier-syntax
+   (syntax-violation #f "misplaced aux keyword" #'||)))
+
+(define-syntax =>
+  (identifier-syntax
+   (syntax-violation #f "misplaced aux keyword" #'=>)))
+
+(define-syntax else
+  (identifier-syntax
+   (syntax-violation #f "misplaced aux keyword" #'else)))
+
+;; very SML-like cond/case
+;; the => aux keyword works purely as a syntactic sugar and it'll work
+;; fine without it.
+
+;; Example:
+;; (define/c (product (xs : (ListOf ℕ)) -> ℕ))
+;;   (case-with || (Ø? xs) => Ø
+;;              || (¬O xs) => ⊥
+;;              || else    => (foldl * 1 xs)
+
+(define-syntax case-with
+  (syntax-rules (|| => else)
+    ((_ || x => y || e ...) (if x y (case-with e ...)))
+    ((_    x => y || e ...) (if x y (case-with e ...)))
+    ((_ || x      || e ...) (syntax-error "Clause has no expression to test for" x))
+    ((_    x      || e ...) (syntax-error "Clause has no expression to test for" x))
+    ((_ || x    y || e ...) (if x y (case-with e ...)))
+    ((_    x    y || e ...) (if x y (case-with e ...)))
+    ((_    x      || e ...) (syntax-error "Clause has no expression to test for" x))
+    ((_ else => x)          (if #t x #f))
+    ((_ else    x)          (if #t x #f))
+    ((_ || x => y)          (if x y #f))
+    ((_    x => y)          (if x y #f))
+    ((_ || x    y)          (if x y #f))
+    ((_ || x)               (syntax-error "Clause has no expression to test for" x))
+    ((_    x    y)          (if x y #f))
+    ((_    x)               (syntax-error "Clause has no expression to test for" x))))
 
 ;;;; *** clojure threading macros ***
 (define-syntax ~>
@@ -241,11 +267,8 @@
 (define ⊥     #f) ; falsum (up tack) (U22A5)
 
 (define bool? boolean?)
-(define fn? procedure?)
-(define sym?  symbol?)
+(define fn?   procedure?)
 (define str?  string?)
-(define _?    char?)
-(define __?   string?)
 (define ::?   pair?)
 ;; bit of cheating, these actually correspond to SV-keyboards slashed O
 (define Ø?    null?)
@@ -307,36 +330,6 @@
   (syntax-rules ()
     ((_ p e . r) (if (¬ p) (begin e . r) ⊥))))
 
-(define-syntax ||
-  (identifier-syntax
-   (syntax-violation #f "misplaced aux keyword" #'||)))
-
-(define-syntax =>
-  (identifier-syntax
-   (syntax-violation #f "misplaced aux keyword" #'=>)))
-
-(define-syntax else
-  (identifier-syntax
-   (syntax-violation #f "misplaced aux keyword" #'else)))
-
-(define-syntax case-of
-  (syntax-rules (|| => else)
-    ((_ || x => y || e ...) (if x y (case-of e ...)))
-    ((_    x => y || e ...) (if x y (case-of e ...)))
-    ((_ || x      || e ...) (syntax-error "Clause has no expression to test for" x))
-    ((_    x      || e ...) (syntax-error "Clause has no expression to test for" x))
-    ((_ || x    y || e ...) (if x y (case-of e ...)))
-    ((_    x    y || e ...) (if x y (case-of e ...)))
-    ((_    x      || e ...) (syntax-error "Clause has no expression to test for" x))
-    ((_ else => x)         (if #t x #f))
-    ((_ else    x)         (if #t x #f))
-    ((_ || x => y)         (if x y #f))
-    ((_    x => y)         (if x y #f))
-    ((_ || x y)            (if x y #f))
-    ((_ || x)              (syntax-error "Clause has no expression to test for" x))
-    ((_    x y)            (if x y #f))
-    ((_    x)              (syntax-error "Clause has no expression to test for" x))))
-
 
 ;;;; *** contracts ***
 ;; Copyright 2017- Linus Björstam
@@ -344,7 +337,7 @@
 
 ;; Example:
 ;; (define/c (sum (xs : (ListOf ℕ)) -> ℕ)
-;;  (case-of || (Ø? xs) => Ø || (¬O xs) => ⊥ || else => (foldl + 0 xs)))
+;;  (case-with || (Ø? xs) => Ø || (¬O xs) => ⊥ || else => (foldl + 0 xs)))
 
 ;; Currently supports types:
 ;; Fn (procedure?), List (list?), Num (number?)
@@ -358,64 +351,67 @@
 ;;;; *** list functions ***
 ;; little schemer fame
 (define/c (rember ((x : α) (ys : List)) -> List)
-  (case-of || (Ø? ys)       => Ø
-           || (= x (hd ys)) => (tl ys)
-           || else          => (:: (hd ys) (rember x (tl ys)))))
+  (case-with || (Ø? ys)       => Ø
+             || (= x (hd ys)) => (tl ys)
+             || else          => (:: (hd ys) (rember x (tl ys)))))
 
 ;; indices should start at 1 goddamnit
-(define/c (ι (n : ℕ) -> List)
+(define/c (ι (n : ℤ) -> List)
   (map (λ (+ _ 1)) (iota n)))
 
 ;; list-ref with idx starting at 1
 (define/c (O-ref ((xs : List) (n : ℤ)) -> α)
-  (case-of || (Ø? xs) => ⊥
-           || (1? n)  => (hd xs)
-           || else    => (O-ref (tl xs) (∇ n))))
+  (case-with || (Ø? xs) => ⊥
+             || (1? n)  => (hd xs)
+             || else    => (O-ref (tl xs) (∇ n))))
 
 (define/c (foldl ((f : Fn) (n : α) (xs : List)) -> α)
-  (case-of || (Ø? xs) => n
-           || else    => (foldl f (f n (hd xs)) (tl xs))))
+  (case-with || (Ø? xs) => n
+             || else    => (foldl f (f n (hd xs)) (tl xs))))
 
 (define/c (foldr ((f : Fn) (n : α) (xs : List)) -> α)
-  (case-of || (Ø? xs) => n
-           || else    => (f (hd xs) (foldr f n (tl xs)))))
+  (case-with || (Ø? xs) => n
+             || else    => (f (hd xs) (foldr f n (tl xs)))))
 
 (define/c (map ((f : Fn) (xs : List)) -> List)
-  (case-of || (Ø? xs) => Ø
-           || else    => (:: (f (hd xs)) (map f (tl xs)))))
+  (case-with || (Ø? xs) => Ø
+             || else    => (:: (f (hd xs)) (map f (tl xs)))))
 
 (define/c (last (xs : List) -> α)
-  (case-of || (Ø? xs) => Ø
-           || else    => (foldl (λ x y => y) Ø xs)))
+  (case-with || (Ø? xs) => Ø
+             || else    => (foldl (λ x y => y) Ø xs)))
 
 (define/c (rev (xs : List) -> List)
-  (ε rec α (λ x y =>
-              (case-of || (Ø? x) => y
-                       || else   => (α (tl x) (:: (hd x) y))))
+  (ε rec α
+     (λ x y =>
+        (case-with || (Ø? x) => y
+                   || else   => (α (tl x) (:: (hd x) y))))
      in (α xs Ø)))
 
 ;; less than ideal probably but just testing around
 (define/c (zip-with ((f : Fn) (xs : List) (ys : List)) -> List)
-  (ε rec α (λ f x y acc =>
-              (case-of || (⋁ (Ø? x) (Ø? y)) => (rev acc)
-                       || else              => (α f (tl x) (tl y)
-                                                (:: (f (hd x) (hd y)) acc))))
+  (ε rec α
+     (λ f x y acc =>
+        (case-with || (⋁ (Ø? x) (Ø? y)) => (rev acc)
+                   || else              => (α f (tl x) (tl y)
+                                            (:: (f (hd x) (hd y)) acc))))
      in (α f xs ys Ø)))
 
 (define/c (zip-with3 ((f : Fn) (xs : List) (ys : List) (zs : List)) -> List)
-  (ε rec α (λ f x y z acc =>
-              (case-of || (⋁ (Ø? x) (Ø? y) (Ø? z)) => (rev acc)
-                       || else => (α f (tl x) (tl y) (tl z)
-                                   (:: (f (hd x) (hd y) (hd z)) acc))))
+  (ε rec α
+     (λ f x y z acc =>
+        (case-with || (⋁ (Ø? x) (Ø? y) (Ø? z)) => (rev acc)
+                   || else => (α f (tl x) (tl y) (tl z)
+                               (:: (f (hd x) (hd y) (hd z)) acc))))
      in (α f xs ys zs Ø)))
 
 (define/c (sum (xs : (ListOf ℕ)) -> ℕ)
-  (case-of || (Ø? xs) => Ø || (¬O xs) => ⊥ || else => (foldl + 0 xs)))
+  (case-with || (Ø? xs) => Ø || (¬O xs) => ⊥ || else => (foldl + 0 xs)))
 
 (define Σ sum)
 
 (define/c (product (xs : (ListOf ℕ)) -> ℕ)
-  (case-of || (Ø? xs) Ø || (¬O xs) => ⊥ || else => (foldl * 1 xs)))
+  (case-with || (Ø? xs) => Ø || (¬O xs) => ⊥ || else => (foldl * 1 xs)))
 
 (define ∏ product)
 
@@ -466,5 +462,5 @@
 
 ;;;; *** demo ***
 ;; two factorial definiton just to show off
-(:= !'  (λ (foldl * 1 (ι _))))
-(:= !'' (λ (∏ (ι _))))
+(define !'  (λ (foldl * 1 (ι _))))
+(define !'' (λ (∏ (ι _))))
