@@ -9,7 +9,7 @@
 ;;https://bitbucket.org/bjoli/nietzsche/src/1769998a800955d5831aa7c0c8b3c31ba00f7050/syntax/contract.scm?at=default&fileviewer=file-view-default
 
 (library (lazar contracts)
-  (export Datatype Pair ListOf Vec VecOf
+  (export Pair ListOf Vec VecOf
           Fn Bool Symbol Char Str Num Natural
           natural? Int Real Rational Complex Any
           a' α ℕ ℤ ℝ ℚ ℂ : -> define/c)
