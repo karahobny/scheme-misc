@@ -356,11 +356,11 @@
              || else          => (:: (hd ys) (rember x (tl ys)))))
 
 ;; indices should start at 1 goddamnit
-(define/c (ι (n : ℤ) -> List)
+(define/c (ι (n : ℕ) -> List)
   (map (λ (+ _ 1)) (iota n)))
 
 ;; list-ref with idx starting at 1
-(define/c (O-ref ((xs : List) (n : ℤ)) -> α)
+(define/c (O-ref ((xs : List) (n : ℕ)) -> α)
   (case-with || (Ø? xs) => ⊥
              || (1? n)  => (hd xs)
              || else    => (O-ref (tl xs) (∇ n))))
@@ -405,17 +405,17 @@
                                (:: (f (hd x) (hd y) (hd z)) acc))))
      in (α f xs ys zs Ø)))
 
-(define/c (sum (xs : (ListOf ℕ)) -> ℕ)
+(define/c (sum (xs : (ListOf Num)) -> Num)
   (case-with || (Ø? xs) => Ø || (¬O xs) => ⊥ || else => (foldl + 0 xs)))
 
 (define Σ sum)
 
-(define/c (product (xs : (ListOf ℕ)) -> ℕ)
+(define/c (product (xs : (ListOf Num)) -> Num)
   (case-with || (Ø? xs) => Ø || (¬O xs) => ⊥ || else => (foldl * 1 xs)))
 
 (define ∏ product)
 
-(define/c (O# (xs : List) -> ℤ)
+(define/c (O# (xs : List) -> ℕ)
   (ε rec α (λ xs acc =>
               (if (Ø? xs) acc
                   (α (tl xs) (∆ acc))))
@@ -441,13 +441,13 @@
 
 ;; vector-ref with idx starting at 1
 ;; xv => vector, n => integer, return-val => any
-(define/c (V-ref ((xv : Vec) (n : ℤ)) -> α)
+(define/c (V-ref ((xv : Vec) (n : ℕ)) -> α)
   (O-ref (V->O xv) n))
 
 (define V@ V-ref)
 
 ;; vector-length
-(define/c (V# (xv : Vec) -> ℤ)
+(define/c (V# (xv : Vec) -> ℕ)
   (O# (V->O xv)))
 
 

@@ -42,6 +42,11 @@
         || (hd preds)    => x
         || else          => (loop (tl preds))))))
 
+;; quick hack to creating booleans out of booleans
+(define-macro (Datatype . args)
+  `(case-with || (⋀ ,@args) => ⊤
+              || else       => ⊥))
+
 
 (define Pair pair?)
 (define List list?)
@@ -67,7 +72,13 @@
 (define Str    string?)
 
 (define Num number?)
-(define ℕ   number?)
+
+(define (Natural n)
+  (Datatype (exact? n)
+            (ℤ      n)
+            (>=     n 0)))
+(define natural? Natural)
+(define ℕ        Natural)
 
 (define Int integer?)
 (define ℤ   integer?)
