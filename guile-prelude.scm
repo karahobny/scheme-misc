@@ -105,12 +105,20 @@
 (define-syntax-rule (λ^ . x) (lambda^ . x))
 
 
+;;;; *** exceptions ***
+;; type exceptions raised with Exn : Type 'function 'type-required.
+;; Exn : Mut 'function => binded to side-effecting syntax you want to disallow.
+
+(define-syntax-rule (raise-stx . x) (syntax-error . x))
+
+
 ;;;; *** primitives ***
 ;;; define / define-syntax-rule
 ;; fast assignment for corner-cases where
 ;; you want terse code fast, one-liners etc.
 ;;  not to be really used.
 (define-syntax-rule (:=     . x) (define             . x))
+(define-syntax-rule (≝      . x) (define             . x))
 (define-syntax-rule (:=/stx . x) (define-syntax-rule . x))
 
 ;;; cons
@@ -139,16 +147,30 @@
 (define O    list)
 (define V    vector)
 
-(:= O^> make-list)
-(:= V^> make-vector)
+(:= O^>  make-list)
+(:= V^>  make-vector)
+(:= O->V list->vector)
+(:= V->O vector->list)
+
+;;; misc.
+(:= inc (λ (+ _ 1)))
+(:= ∆ inc)
+(:= dec (λ (- _ 1)))
+(:= ∇ dec)
+;; nb. nabla really isnt decr operator but
+;; lets just roll with it.
+(:= √ sqrt)
 
 
 ;;;; *** let ***
 
 ;; Example:
-;;         (let^ α 10 β 20 γ (+ α β) in γ)
+;;         (est α 10 β 20 γ (+ α β) in γ)
+;;    or:  (ε α (λ x => (+ x 10)) β 20 in (α β))
 ;; Use linebreaks atm to differentiate between the vars
-;; and their binds from each other.
+;; and their binds from each other if you wish.
+
+;; TODO: named-let
 
 (define-syntax rec
   (identifier-syntax
@@ -158,21 +180,31 @@
   (identifier-syntax
    (syntax-violation #f "misplaced aux keyword" #'in)))
 
-(define-syntax let^
+(define-syntax est
   (syntax-rules (rec in)
     ((_ rec x y in e ...) ((lambda ()  (define x y)  e ...)))
-    ((_ rec x y    r ...) ((lambda ()  (define x y)  (let^ r ...))))
+    ((_ rec x y    r ...) ((lambda ()  (define x y)  (est r ...))))
     ((_     x y in e ...) ((lambda (x) e ...)        y))
-    ((_     x y    r ...) ((lambda (x) (let^ r ...)) y))))
+    ((_     x y    r ...) ((lambda (x) (est r ...))  y))))
 
-;;; misc.
-(:= √ sqrt)
+(define-syntax let
+  (syntax-rules ()
+    ((_ ((x y) ...) r ...)
+     ((lambda (x ...) r ...) y ...))
+    ((_ x ((y z) ...) r ...)
+     ((lambda () (define x (lambda (y ...) r ...)) (x z ...))))))
 
-(:= inc (λ (+ _ 1))) (:= ∆ inc)
-(:= dec (λ (- _ 1))) (:= ∇ dec)
+(define-syntax let*
+  (syntax-rules ()
+    ((_ () e ...)
+     ((lambda () e ...)))
+    ((let* ((x y) r ...) e ...)
+     ((lambda (x) (let* (r ...) e ...)) y))))
 
-;; nb. nabla really isnt decr operator but
-;; lets just roll with it.
+;; like peano used to indicate something as an element
+;; of a set with an ε (greek letter) as in `est` (is),
+;; might as well use this too to indicate let closures
+(define-syntax-rule (ε . x) (est . x))
 
 
 ;;;; *** clojure threading macros ***
@@ -204,76 +236,53 @@
 
 (define bool? boolean?)
 (define proc? procedure?)
+(define sym?  symbol?)
 (define str?  string?)
+(define _?    char?)
+(define __?   string?)
 (define ::?   pair?)
 ;; bit of cheating, these actually correspond to SV-keyboards slashed O
 (define Ø?    null?)
 ;; cant really use curly brackets so unslashed capital o for list for now
-(define O?    list?)
-(define V?    vector?)
+(define O?  list?)
+(define V?  vector?)
+(define *V? bitvector?)
 
-(define N? number?)
-(define ℕ? number?)
-(define Z? integer?)
-(define ℤ? integer?)
-(define R? real?)
-(define ℝ? real?)
-(define Q? rational?)
-(define ℚ? rational?)
-(define C? complex?)
-(define ℂ? complex?)
+(define N number?)
+(define ℕ number?)
+(define Z integer?)
+(define ℤ integer?)
+(define R real?)
+(define ℝ real?)
+(define Q rational?)
+(define ℚ rational?)
+(define C complex?)
+(define ℂ complex?)
 
-(define-syntax-rule (/\ . x) (and . x))
-(define-syntax-rule (∧  . x) (and . x)) ; logical'and (U2227)
-(define-syntax-rule (⋀  . x) (and . x)) ; n-ary logical 'and' (U22C0)
-(define-syntax-rule (\/ . x) (or  . x))
-(define-syntax-rule (∨  . x) (or  . x)) ; logical 'or' (U2228)
-(define-syntax-rule (⋁  . x) (or  . x)) ; n-ary logical 'or' (U22C1)
-(define-syntax-rule (-. . x) (not . x))
-(define-syntax-rule (¬  . x) (not . x)) ; unicode logical symbol 'not' (U00AC)
-(define-syntax-rule (~  . x) (not . x))
+(load "logic.scm")
 
-(define-syntax-rule (/= . x) (not (= . x)))
-(define-syntax-rule (/> . x) (not (> . x)))
-(define-syntax-rule (/< . x) (not (< . x)))
-;; negation acts as an implicit question mark
-;; in these cases.
+(define (seq? xx)
+  (⋁ (O? xx) (V? xx) (string? xx) (hash-table? xx) (*V? xx) (stream? xx)))
+
+;; negation of numerical tower
+(define-syntax-rule (¬N . x) (not (number?   . x)))
+(define-syntax-rule (¬ℕ . x) (not (number?   . x)))
+(define-syntax-rule (¬Z . x) (not (integer?  . x)))
+(define-syntax-rule (¬ℤ . x) (not (integer?  . x)))
+(define-syntax-rule (¬ℝ . x) (not (real?     . x)))
+(define-syntax-rule (¬R . x) (not (real?     . x)))
+(define-syntax-rule (¬ℚ . x) (not (rational? . x)))
+(define-syntax-rule (¬Q . x) (not (rational? . x)))
+(define-syntax-rule (¬ℂ . x) (not (complex?  . x)))
+(define-syntax-rule (¬C . x) (not (complex?  . x)))
+
+;; negation of lists, vectors etc.
 (define-syntax-rule (¬O . x) (not (list?   . x)))
 (define-syntax-rule (¬Ø . x) (not (null?   . x)))
 (define-syntax-rule (¬V . x) (not (vector? . x)))
 
-;; church style succ of zero
-(define =0? (λ (if (= _    0)                      ⊤ ⊥)))
-(define =1? (λ (if (= _ (∆ 0))                     ⊤ ⊥)))
-(define =2? (λ (if (= _ (∆ (∆ 0)))                 ⊤ ⊥)))
-(define =3? (λ (if (= _ (∆ (∆ (∆ 0))))             ⊤ ⊥)))
-(define =4? (λ (if (= _ (∆ (∆ (∆ (∆ 0)))))         ⊤ ⊥)))
-(define =5? (λ (if (= _ (∆ (∆ (∆ (∆ (∆ 0))))))     ⊤ ⊥)))
-(define =6? (λ (if (= _ (∆ (∆ (∆ (∆ (∆ (∆ 0))))))) ⊤ ⊥)))
-
-(define (every? p xs)
-  (let^ rec α (cond ((Ø? xs)     ⊤)
-                    ((p (hd xs)) (α (tl xs)))
-                    (else        ⊥))
-        in (α p xs)))
-
-(define (≬ x y z)
-  (⋀ (< x y) (< y z)))
-
-(define between? ≬)
-
-(define-syntax ⊼
-  (syntax-rules ()
-    ((_ e)        (if (¬ e) ⊤ ⊥))
-    ((_ e e* ...) (if (¬ e) ⊥ (⊼ e* ...)))))
-
-(define-syntax ⊽
-  (syntax-rules ()
-    ((_ e)        (if e ⊥ ⊤))
-    ((_ e e* ...) (if e ⊥ (⊽ e* ...)))))
-
-(:=/stx (nand . x) (⊼ . x))
-(:=/stx (nor  . x) (⊽ . x))
+(define 0? (λ (if (= _    0)  ⊤ ⊥)))
+(define 1? (λ (if (= _ (∆ 0)) ⊤ ⊥)))
 
 ;;; if sugared / when / unless
 ;; denoted simply by prime to take advantage
@@ -303,118 +312,151 @@
   (syntax-rules ()
     ((_ p e . r) (if (¬ p) (begin e . r) ⊥))))
 
+(define-syntax ||
+  (identifier-syntax
+   (syntax-violation #f "misplaced aux keyword" #'||)))
+
+(define-syntax =>
+  (identifier-syntax
+   (syntax-violation #f "misplaced aux keyword" #'=>)))
+
+(define-syntax else
+  (identifier-syntax
+   (syntax-violation #f "misplaced aux keyword" #'else)))
+
+(define-syntax case-of
+  (syntax-rules (|| => else)
+    ((_ || x => y || e ...) (if x y (case-of e ...)))
+    ((_    x => y || e ...) (if x y (case-of e ...)))
+    ((_ || x      || e ...) (syntax-error "Clause has no expression to test for" x))
+    ((_    x      || e ...) (syntax-error "Clause has no expression to test for" x))
+    ((_ || x    y || e ...) (if x y (case-of e ...)))
+    ((_    x    y || e ...) (if x y (case-of e ...)))
+    ((_    x      || e ...) (syntax-error "Clause has no expression to test for" x))
+    ((_ else => x)         (if #t x #f))
+    ((_ else    x)         (if #t x #f))
+    ((_ || x => y)         (if x y #f))
+    ((_    x => y)         (if x y #f))
+    ((_ || x y)            (if x y #f))
+    ((_ || x)              (syntax-error "Clause has no expression to test for" x))
+    ((_    x y)            (if x y #f))
+    ((_    x)              (syntax-error "Clause has no expression to test for" x))))
+
 
 ;;;; *** list functions ***
 ;; little schemer fame
 (define rember
   (λ x ys =>
-     (cond ((Ø? ys)       Ø)
-           ((= x (hd ys)) (tl ys))
-           (else          (:: (hd ys) (rember x (tl ys)))))))
+     (case-of || (Ø? ys)       => Ø
+              || (= x (hd ys)) => (tl ys)
+              || else          => (:: (hd ys) (rember x (tl ys))))))
 
 ;; indices should start at 1 goddamnit
-(:= ι (λ (map (λ (+ _ 1)) (iota _))))
+(define ι (λ (map (λ (+ _ 1)) (iota _))))
 
 ;; list-ref with idx starting at 1
 (define (O-ref xs n)
-  (cond ((Ø? xs) ⊥)
-        ((=1? n) (hd xs))
-        (else    (O-ref (tl xs) (∇ n)))))
-
-(:= O@ O-ref)
+  (case-of || (Ø? xs) => ⊥
+           || (1? n)  => (hd xs)
+           || else    => (O-ref (tl xs) (∇ n))))
 
 (define (foldl f n xs)
-  (if (Ø? xs) n
-      (foldl f (f n (hd xs)) (tl xs))))
-
-(:= /^>  foldl)
+  (case-of || (Ø? xs) => n
+           || else    => (foldl f (f n (hd xs)) (tl xs))))
 
 (define (foldr f n xs)
-  (if (Ø? xs) n
-      (f (hd xs) (foldr f n (tl xs)))))
-
-(:= \^>  foldr)
+  (case-of || (Ø? xs) => n
+           || else    => (f (hd xs) (foldr f n (tl xs)))))
 
 (define (map f xs)
-  (if (Ø? xs) Ø
-      (:: (f (hd xs)) (map f (tl xs)))))
-
-(:= $/>  map)
+  (case-of || (Ø? xs) => Ø
+           || else    => (:: (f (hd xs)) (map f (tl xs)))))
 
 (define (last xs)
-  (cond ((Ø? xs) Ø)
-        ((¬O xs) ⊥)
-        (else    (/^> (λ x y => y) Ø xs))))
+  (case-of || (Ø? xs) => Ø
+           || (¬O xs) => (error "type mismatch; expecting list")
+           || else    => (foldl (λ x y => y) Ø xs)))
 
 (define (rev xs)
-  (let^ rec α (λ x y =>
-                 (cond ((Ø? x) y)
-                       ((¬O x) ⊥)
-                       (else   (α (tl x) (:: (hd x) y)))))
-        in (α xs Ø)))
+  (ε rec α (λ x y =>
+              (case-of || (Ø? x) => y
+                       || (¬O x) => (error "type mismatch; expecting list")
+                       || else   => (α (tl x) (:: (hd x) y))))
+     in (α xs Ø)))
 
 ;; less than ideal probably but just testing around
 (define (zip-with f xs ys)
-  (let^ rec α (λ f x y acc =>
-                 (cond ((⋁ (Ø? x) (Ø? y)) (rev acc))
-                       ((⋁ (¬O x) (¬O y)) ⊥)
-                       (else              (α f (tl x) (tl y)
-                                             (:: (f (hd x) (hd y)) acc)))))
-        in (α f xs ys Ø)))
+  (ε rec α (λ f x y acc =>
+              (case-of || (⋁ (Ø? x) (Ø? y)) => (rev acc)
+                       || (⋁ (¬O x) (¬O y)) => (error "type mismatch; expecting lists")
+                       || else              => (α f (tl x) (tl y)
+                                                (:: (f (hd x) (hd y)) acc))))
+     in (α f xs ys Ø)))
 
 (define (zip-with3 f xs ys zs)
-  (let^ rec α (λ f x y z acc =>
-                 (cond ((⋁ (Ø? x) (Ø? y) (Ø? z)) (rev acc))
-                       ((⋁ (¬O x) (¬O y) (¬O z)) ⊥)
-                       (else
-                        (α f (tl x) (tl y) (tl z)
-                           (:: (f (hd x) (hd y) (hd z)) acc)))))
-        in (α f xs ys zs Ø)))
+  (ε rec α (λ f x y z acc =>
+              (case-of || (⋁ (Ø? x) (Ø? y) (Ø? z)) => (rev acc)
+                       || (⋁ (¬O x) (¬O y) (¬O z)) => (error "type mismatch; expecting lists")
+                       || else => (α f (tl x) (tl y) (tl z)
+                                   (:: (f (hd x) (hd y) (hd z)) acc))))
+     in (α f xs ys zs Ø)))
 
 (define (sum xs)
-  (cond ((Ø? xs) Ø)
-        ((¬O xs) ⊥)
-        (else    (/^> + 0 xs))))
+  (case-of || (Ø? xs) => Ø || (¬O xs) => ⊥ || else => (foldl + 0 xs)))
 
-(:= Σ sum)
+(define Σ sum)
 
 (define (product xs)
-  (cond ((Ø? xs) Ø)
-        ((¬O xs) ⊥)
-        (else    (/^> * (∆ 0) xs))))
+  (case-of || (Ø? xs) Ø || (¬O xs) => ⊥ || else => (foldl * 1 xs)))
 
-(:= ∏ product)
+(define ∏ product)
+
+(define (O# xs)
+  (case-of || (¬O xs) => (error "type mismatch; expecting list")
+           || else    => (ε rec α (λ xs acc =>
+                                   (if (Ø? xs) acc
+                                       (α (tl xs) (∆ acc))))
+                          in (α xs 0))))
 
 (define (factorial n)
-  (let^ rec α (λ n acc =>
-                 (if (=0? n) acc
-                     (α (∇ n) (* n acc))))
-        in (α n (∆ 0))))
+  (ε rec α (λ n acc =>
+              (if (0? n) acc
+                  (α (∇ n) (* n acc))))
+     in (α n 1)))
 
-(:= fact factorial)
-(:= !    factorial)
+(define fact factorial)
 
 ;; Y-combinator
 (define Y
-  (λ f => ((λ (_ _)) (λ (f (λ a .. => ($> (_ _) a)))))))
+  (λ f => ((λ (_ _)) (λ (f (λ a .. => (apply (_ _) a)))))))
 
 ;;;; *** vectors ***
-;; vector-ref with idx starting at 1
-;; TODO: implement this independtly of vector-ref
-(define (V-ref xv n)
-  (cond ((¬V xv) ⊥)
-        (else    (vector-ref xv (∇ n)))))
 
-(:= V@ V-ref)
+;; REFACTOR: probably better way to do this than to
+;;           translate vector to list and using O-ref.
+
+;; vector-ref with idx starting at 1
+(define (V-ref xv n)
+  (O-ref (V->O xv) n))
+
+(define V@ V-ref)
+
+;; vector-length
+(define (V# xv)
+  (case-of || (¬V xv) => (error "type mismatch; expecting vector")
+           || else    => (O# (V->O xv))))
 
 
 ;;;; *** immutability ***
-(define-syntax-rule (set!     . x) (error "mutation disallowed"))
-(define-syntax-rule (set-car! . x) (error "mutation disallowed"))
-(define-syntax-rule (set-cdr! . x) (error "mutation disallowed"))
+(define-syntax-rule (set!     . x) (error "side effects / mutation not allowed!"))
+(define-syntax-rule (set-car! . x) (error "side effects / mutation not allowed!"))
+(define-syntax-rule (set-cdr! . x) (error "side effects / mutation not allowed!"))
 
+;;; monadic println
+(define (println str)
+  (run-io (iodisplay str) (ionewline)))
 
 ;;;; *** demo ***
 ;; two factorial definiton just to show off
-(:= !'   (λ (/^> * 1 (ι _))))
-(:= !''  (λ (∏ (ι _))))
+(:= !'  (λ (foldl * 1 (ι _))))
+(:= !'' (λ (∏ (ι _))))
