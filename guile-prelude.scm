@@ -343,7 +343,7 @@
 ;; with little modifications by me
 
 ;; Example:
-;; (define/c (sum (xs : (Listof ℕ)) -> ℕ)
+;; (define/c (sum (xs : (ListOf ℕ)) -> ℕ)
 ;;  (case-of || (Ø? xs) => Ø || (¬O xs) => ⊥ || else => (foldl + 0 xs)))
 
 ;; Currently supports types:
@@ -365,7 +365,6 @@
 ;; indices should start at 1 goddamnit
 (define/c (ι (n : ℕ) -> List)
   (map (λ (+ _ 1)) (iota n)))
-
 
 ;; list-ref with idx starting at 1
 (define/c (O-ref ((xs : List) (n : ℤ)) -> α)
@@ -410,12 +409,12 @@
                                    (:: (f (hd x) (hd y) (hd z)) acc))))
      in (α f xs ys zs Ø)))
 
-(define/c (sum (xs : (Listof ℕ)) -> ℕ)
+(define/c (sum (xs : (ListOf ℕ)) -> ℕ)
   (case-of || (Ø? xs) => Ø || (¬O xs) => ⊥ || else => (foldl + 0 xs)))
 
 (define Σ sum)
 
-(define/c (product (xs : (Listof ℕ)) -> ℕ)
+(define/c (product (xs : (ListOf ℕ)) -> ℕ)
   (case-of || (Ø? xs) Ø || (¬O xs) => ⊥ || else => (foldl * 1 xs)))
 
 (define ∏ product)

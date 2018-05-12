@@ -28,14 +28,13 @@
 
 (define Pair pair?)
 (define List list?)
-(define (Listof pred?)
+(define (ListOf pred?)
   (λ x =>
      (case-of || (list? x) => (Every pred? x)
               || else      => #f)))
 
-(define BitVec bitvector?)
 (define Vec vector?)
-(define (Vectorof pred?)
+(define (VectorOf pred?)
   (λ x =>
      (ε len (vector-length x) in
        (let loop ((i 0))
