@@ -1,4 +1,4 @@
-# Lazar
+## Lazar
 
 #### Toy library for R6RS Scheme
 
@@ -89,7 +89,9 @@ not := ¬
      in (aux xs Ø)))
 ```
 
-### Thanks to
-**r/scheme**
-**Linus Björnstam**
+#### Thanks to
+**[r/scheme](https://www.reddit.com/r/scheme/)**
+
+**[Linus Björnstam](https://bitbucket.org/bjoli/)**
+
 **#scheme @ freenode**
