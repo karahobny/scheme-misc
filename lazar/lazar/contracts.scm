@@ -16,38 +16,38 @@
   (import (rnrs (6))
           (lazar case-with)
           (lazar fn-lambda)
-          (lazar est))
+          (lazar est)
+          (lazar basic-syntax))
 
   (define Every
     (λ p xs =>
        (let loop ((xs xs))
-         (case-of
-          || (null? xs)  => #t
-          || (p (car xs)) => (loop (cdr xs))
-          || else        => #f))))
+         (case-of || (Ø? xs)     => ⊤
+                  || (p (hd xs)) => (loop (tl xs))
+                  || else        => ⊥))))
 
   (define (Or . preds)
     (λ x =>
        (let loop ((preds preds))
-         (case-with || (null? preds) => #f
-                    || (car preds)   => x
-                    || else          => (loop (cdr preds))))))
+         (case-with || (Ø? preds) => ⊥
+                    || (hd preds) => x
+                    || else       => (loop (tl preds))))))
 
   (define Pair pair?)
   (define List list?)
   (define (ListOf p)
     (λ x =>
        (case-with || (List x) => (Every p x)
-                  || else     => #f)))
+                  || else     => ⊥)))
 
   (define Vec vector?)
   (define (VecOf p)
     (λ x =>
        (ε len (vector-length x) in
           (let loop ((i 0))
-            (case-with || (= i len)            => #t
+            (case-with || (= i len)            => ⊤
                        || (p (vector-ref x i)) => (loop (∆ i))
-                       || else                 => #f)))))
+                       || else                 => ⊥)))))
 
   (define Fn   procedure?)
   (define Bool boolean?)

@@ -1,5 +1,5 @@
 (library (lazar est)
-  (export rec in ε)
+  (export rec in ε est)
   (import (rnrs (6)))
 
 
@@ -32,4 +32,8 @@
       ((_ rec x y    r ...) ((lambda ()  (define x y)  (ε r ...))))
       ;; let* equivalent
       ((_     x y in e ...) ((lambda (x) e ...)        y))
-      ((_     x y    r ...) ((lambda (x) (ε r ...))  y)))))
+      ((_     x y    r ...) ((lambda (x) (ε r ...))  y))))
+
+  (define-syntax est
+    (syntax-rules ()
+      ((_ . x) (ε . x)))))
